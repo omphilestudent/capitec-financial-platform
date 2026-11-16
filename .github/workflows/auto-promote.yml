@@ -1,0 +1,87 @@
+name: Automated Environment Promotion
+
+on:
+  push:
+    branches:
+      - dev
+      - INT
+      - UAT
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: auto-promote-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  create-promotion-pr:
+    name: Create next environment promotion PR
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create promotion pull request
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const promotions = {
+              dev: { head: "dev", base: "INT" },
+              INT: { head: "INT", base: "UAT" },
+              UAT: { head: "UAT", base: "main" }
+            };
+
+            const sourceBranch = context.ref.replace("refs/heads/", "");
+            const promotion = promotions[sourceBranch];
+
+            if (!promotion) {
+              core.info(`No promotion configured for ${sourceBranch}. Skipping.`);
+              return;
+            }
+
+            const { owner, repo } = context.repo;
+            const head = `${owner}:${promotion.head}`;
+
+            const existing = await github.rest.pulls.list({
+              owner,
+              repo,
+              state: "open",
+              head,
+              base: promotion.base
+            });
+
+            if (existing.data.length > 0) {
+              core.info(
+                `An open promotion PR already exists: ${existing.data[0].html_url}`
+              );
+              return;
+            }
+
+            try {
+              const pullRequest = await github.rest.pulls.create({
+                owner,
+                repo,
+                title: `Promote ${promotion.head} to ${promotion.base}`,
+                head: promotion.head,
+                base: promotion.base,
+                body: [
+                  "## Automated environment promotion",
+                  "",
+                  `This pull request promotes the latest changes from **${promotion.head}** to **${promotion.base}**.`,
+                  "",
+                  "Please review the changes and allow the required checks to complete before merging.",
+                  "",
+                  "This PR was created automatically by the Automated Environment Promotion workflow."
+                ].join("\n"),
+                maintainer_can_modify: true
+              });
+
+              core.info(`Created promotion PR: ${pullRequest.data.html_url}`);
+            } catch (error) {
+              if (error.status === 422) {
+                core.info(
+                  `No promotion PR was created. GitHub reports there may be no changes to promote from ${promotion.head} to ${promotion.base}.`
+                );
+                return;
+              }
+              throw error;
+            }
