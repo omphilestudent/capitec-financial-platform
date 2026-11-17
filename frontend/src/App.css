@@ -1,0 +1,1318 @@
+/* =========================================================
+   CAPITEC FINANCIAL INTELLIGENCE
+   Visual system: Salesforce Lightning (SLDS) as seen in the
+   reference screenshots: white utility header, white app bar
+   with underlined tabs, grey canvas, white cards, record header,
+   blue primary actions and a white footer utility bar.
+   ========================================================= */
+
+:root {
+  --slds-brand: #0176d3;
+  --slds-brand-hover: #014486;
+  --slds-navy: #032d60;          /* headings / path navy */
+  --slds-brand-tint: #eef4ff;
+
+  --page: #f3f2f2;               /* app canvas */
+  --surface: #ffffff;
+  --surface-hover: #f3f2f2;
+
+  --text: #080707;
+  --text-secondary: #706e6b;
+  --text-tertiary: #3e3e3c;
+
+  --accent: #0176d3;
+  --accent-hover: #014486;
+
+  --success: #2e844a;
+  --warning: #8a5a00;
+  --danger: #ba0517;
+  --live: #c23934;
+
+  --line: #dddbda;
+  --line-strong: #c9c7c5;
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-pill: 16px;
+
+  --font: "Salesforce Sans", "Segoe UI", Arial, sans-serif;
+
+  --shadow-card: 0 1px 2px 0 rgba(0, 0, 0, 0.08);
+  --shadow-menu: 0 2px 3px 0 rgba(0, 0, 0, 0.16);
+}
+
+/* -------------------------
+   Base
+------------------------- */
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-width: 320px;
+  background: var(--page);
+}
+
+body {
+  margin: 0;
+  color: var(--text);
+  background: var(--page);
+  font-family: var(--font);
+  font-size: 13px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1,
+h2,
+h3,
+p {
+  font-family: var(--font);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  color: inherit;
+  cursor: pointer;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--slds-brand);
+  outline-offset: 1px;
+}
+
+svg {
+  flex-shrink: 0;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+/* -------------------------
+   Shell
+------------------------- */
+
+.salesforce-shell {
+  min-height: 100vh;
+  padding-bottom: 40px;
+  background: var(--page);
+}
+
+/* -------------------------
+   Utility header (white, 48px)
+   Logo + brand left, search centred, actions right
+------------------------- */
+
+.global-header {
+  position: relative;
+  z-index: 10;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 16px;
+  color: var(--text);
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+
+.header-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 220px;
+}
+
+.launcher-button {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  color: var(--text);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-sm);
+}
+
+.launcher-button:hover {
+  background: var(--surface-hover);
+}
+
+/* The Salesforce cloud logo, used as the app icon */
+.app-logo {
+  width: 52px;
+  height: 36px;
+  display: block;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.brand-title {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+
+.brand-title strong {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.brand-title span {
+  margin-top: 1px;
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 1px;
+}
+
+/* Global search: the rounded white field centred in the header */
+
+.global-search {
+  width: min(560px, 42vw);
+  height: 32px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  color: var(--text-secondary);
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-pill);
+  transition: box-shadow 120ms ease, border-color 120ms ease;
+}
+
+.global-search:hover {
+  border-color: #a8a6a4;
+}
+
+.global-search:focus-within {
+  border-color: var(--slds-brand);
+  box-shadow: 0 0 0 1px var(--slds-brand);
+}
+
+.global-search > svg {
+  color: var(--text-secondary);
+}
+
+.global-search input {
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  color: var(--text);
+  background: transparent;
+  border: 0;
+  outline: 0;
+  font-size: 13px;
+}
+
+.global-search input::placeholder {
+  color: var(--text-secondary);
+  opacity: 1;
+}
+
+.global-search kbd {
+  flex-shrink: 0;
+  padding: 1px 6px;
+  color: var(--text-secondary);
+  background: var(--surface-hover);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  font-family: var(--font);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+/* Header actions */
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.header-actions button {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  color: var(--text);
+  background: transparent;
+  border: 0;
+  border-radius: 50%;
+  transition: background 120ms ease;
+}
+
+.header-actions button:hover {
+  background: var(--surface-hover);
+}
+
+.header-actions svg {
+  stroke-width: 1.8;
+}
+
+.header-user {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  margin: 0 2px;
+  color: #ffffff;
+  background: #3b5b7d;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.notification-icon {
+  position: relative;
+}
+
+.notification-icon i {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 8px;
+  height: 8px;
+  background: #ea001e;
+  border: 2px solid var(--surface);
+  border-radius: 50%;
+}
+
+/* -------------------------
+   App bar (white, 48px): app name, underlined tabs, More
+------------------------- */
+
+.app-navigation {
+  min-height: 48px;
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  padding: 0 0 0 8px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+
+.app-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px 0 8px;
+  color: var(--text);
+  background: transparent;
+  border: 0;
+  border-right: 1px solid var(--line);
+  font-size: 16px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.app-name:hover {
+  background: var(--surface-hover);
+}
+
+.app-name > svg:last-child {
+  color: var(--text-secondary);
+}
+
+.app-symbol {
+  display: none;
+}
+
+.navigation-tabs {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.navigation-tabs button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 14px;
+  color: var(--text);
+  background: transparent;
+  border: 0;
+  font-size: 13px;
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+.navigation-tabs button:hover {
+  background: var(--surface-hover);
+}
+
+.navigation-tabs button.selected {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.navigation-tabs button.selected::after {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  background: var(--slds-brand);
+  content: "";
+}
+
+.navigation-tabs button.selected::before {
+  content: none;
+}
+
+.navigation-settings {
+  width: 40px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 0;
+}
+
+.navigation-settings:hover {
+  color: var(--slds-brand);
+  background: var(--surface-hover);
+}
+
+/* Mobile navigation (shown under 760px) */
+
+.mobile-navigation,
+.mobile-sidebar {
+  display: none;
+}
+
+/* -------------------------
+   Workspace
+------------------------- */
+
+.workspace {
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 20px 20px 40px;
+}
+
+/* Record header: sits on the grey canvas, like a Lightning record page */
+
+.workspace-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 0 16px;
+  margin-bottom: 8px;
+}
+
+.breadcrumbs {
+  margin-bottom: 2px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.breadcrumbs span {
+  margin: 0 4px;
+  color: var(--text-secondary);
+}
+
+.workspace-heading h1 {
+  margin: 0;
+  color: var(--slds-navy);
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: 0;
+}
+
+.workspace-heading p {
+  margin: 4px 0 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.heading-actions {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  flex-shrink: 0;
+  padding-top: 2px;
+}
+
+/* -------------------------
+   Buttons (Lightning: outlined and blue primary)
+------------------------- */
+
+.lightning-button {
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 14px;
+  border-radius: var(--radius-pill);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.25;
+  white-space: nowrap;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+
+.lightning-button.primary {
+  color: #ffffff;
+  background: var(--slds-brand);
+  border: 1px solid var(--slds-brand);
+}
+
+.lightning-button.primary:hover {
+  background: var(--slds-brand-hover);
+  border-color: var(--slds-brand-hover);
+}
+
+.lightning-button.secondary {
+  color: var(--slds-brand);
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+}
+
+.lightning-button.secondary:hover {
+  background: var(--surface-hover);
+}
+
+.heading-actions .lightning-button.secondary {
+  border-radius: var(--radius-sm);
+  margin-left: -1px;
+}
+
+.heading-actions .lightning-button.secondary:first-child {
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+}
+
+.link-button {
+  padding: 2px 0;
+  color: var(--slds-brand);
+  background: transparent;
+  border: 0;
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.link-button:hover {
+  color: var(--slds-brand-hover);
+  text-decoration: underline;
+}
+
+/* -------------------------
+   Tabset (Lightning tabs inside a white card)
+------------------------- */
+
+.workspace-tabs {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  margin-bottom: 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  border-bottom: 0;
+  overflow-x: auto;
+  padding: 0 12px;
+}
+
+.workspace-tabs button {
+  position: relative;
+  height: 44px;
+  padding: 0 14px;
+  color: var(--text-tertiary);
+  background: transparent;
+  border: 0;
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.workspace-tabs button:hover {
+  color: var(--slds-brand);
+}
+
+.workspace-tabs button.active {
+  color: var(--slds-brand);
+}
+
+.workspace-tabs button.active::after {
+  position: absolute;
+  right: 14px;
+  bottom: 0;
+  left: 14px;
+  height: 3px;
+  background: var(--slds-brand);
+  border-radius: 2px 2px 0 0;
+  content: "";
+}
+
+/* -------------------------
+   Record header card (Case-style: icon, title, meta)
+------------------------- */
+
+.record-banner {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  margin-bottom: 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+}
+
+.record-avatar {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  color: #ffffff;
+  background: #d8447a;
+  border-radius: 50%;
+}
+
+.record-info {
+  min-width: 0;
+  flex: 1;
+}
+
+.record-info > span {
+  display: block;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.record-info h2 {
+  margin: 0;
+  color: var(--text);
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.record-info p {
+  margin: 2px 0 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.record-menu {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 0;
+  border-radius: 50%;
+}
+
+.record-menu:hover {
+  color: var(--text);
+  background: var(--surface-hover);
+}
+
+/* -------------------------
+   Section headings (Lightning sub-heading)
+------------------------- */
+
+.section-title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 20px 0 12px;
+}
+
+.section-title h2 {
+  margin: 0;
+  color: var(--slds-navy);
+  font-size: 18px;
+  font-weight: 400;
+}
+
+.section-title span {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+/* -------------------------
+   Highlight KPI cards
+------------------------- */
+
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.lightning-card.kpi-card {
+  min-width: 0;
+  padding: 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+}
+
+.kpi-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.kpi-heading svg {
+  color: var(--text-secondary);
+  stroke-width: 1.8;
+}
+
+.kpi-card > strong {
+  display: block;
+  color: var(--text);
+  font-size: clamp(18px, 1.8vw, 24px);
+  font-weight: 700;
+  line-height: 1.25;
+  font-variant-numeric: tabular-nums;
+}
+
+.kpi-change {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+  color: var(--success);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.kpi-change svg {
+  stroke-width: 2;
+}
+
+/* -------------------------
+   Content cards (Lightning cards with title + icon)
+------------------------- */
+
+.content-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.65fr) minmax(280px, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.lightning-card {
+  min-width: 0;
+  padding: 0;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+}
+
+.card-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.card-heading h2 {
+  margin: 0;
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.card-heading p {
+  margin: 2px 0 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.card-heading > .live-pill {
+  flex-shrink: 0;
+}
+
+/* -------------------------
+   Data table (Lightning data table)
+------------------------- */
+
+.data-table {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.data-table table {
+  width: 100%;
+  min-width: 560px;
+  border-collapse: collapse;
+  border-spacing: 0;
+  text-align: left;
+}
+
+.data-table thead {
+  background: var(--surface);
+}
+
+.data-table th {
+  padding: 8px 12px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--line);
+}
+
+.data-table td {
+  height: 44px;
+  padding: 8px 12px;
+  color: var(--text);
+  font-size: 13px;
+  white-space: nowrap;
+  vertical-align: middle;
+  border-top: 1px solid var(--line);
+}
+
+.data-table tbody tr {
+  background: var(--surface);
+  transition: background 120ms ease;
+}
+
+.data-table tbody tr:hover {
+  background: var(--surface-hover);
+}
+
+.data-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+td.credit {
+  color: var(--success);
+  font-weight: 700;
+  text-align: right;
+}
+
+td.debit {
+  color: var(--text);
+  font-weight: 400;
+  text-align: right;
+}
+
+.data-table th:nth-child(4) {
+  text-align: right;
+}
+
+.transaction-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 150px;
+}
+
+.transaction-icon {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  color: #ffffff;
+  background: #747474;
+  border-radius: 50%;
+}
+
+.transaction-icon.credit {
+  background: var(--success);
+}
+
+.transaction-icon.debit {
+  background: #747474;
+}
+
+.transaction-cell strong {
+  display: block;
+  color: var(--slds-brand);
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.transaction-cell small {
+  display: block;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.success-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--success);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.success-pill::before {
+  width: 8px;
+  height: 8px;
+  background: var(--success);
+  border-radius: 50%;
+  content: "";
+}
+
+/* -------------------------
+   Fraud monitoring panel
+------------------------- */
+
+.live-pill {
+  padding: 2px 8px;
+  color: #ffffff;
+  background: var(--live);
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+}
+
+.fraud-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 12px 16px;
+  padding: 12px;
+  color: var(--warning);
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+  border-radius: var(--radius-sm);
+}
+
+.fraud-banner > svg {
+  flex-shrink: 0;
+  stroke-width: 1.8;
+}
+
+.fraud-banner strong,
+.fraud-banner span {
+  display: block;
+}
+
+.fraud-banner strong {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.fraud-banner span {
+  margin-top: 2px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.fraud-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-top: 1px solid var(--line);
+}
+
+.fraud-item > div {
+  flex: 1;
+  min-width: 0;
+}
+
+.fraud-item strong {
+  display: block;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.fraud-item small {
+  display: block;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.fraud-item > span:last-child {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.risk-dot {
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+  border-radius: 50%;
+}
+
+.risk-dot.high {
+  background: var(--danger);
+}
+
+.risk-dot.medium {
+  background: #fe9339;
+}
+
+.full-link {
+  display: block;
+  width: calc(100% - 32px);
+  margin: 0 16px 12px;
+  padding: 12px 0 0;
+  text-align: left;
+  border-top: 1px solid var(--line);
+}
+
+/* -------------------------
+   Empty states
+------------------------- */
+
+.empty-tab {
+  min-height: 240px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 32px 16px;
+  text-align: center;
+}
+
+.empty-tab > svg {
+  margin-bottom: 4px;
+  color: var(--text-secondary);
+  stroke-width: 1.5;
+}
+
+.empty-tab h2 {
+  margin: 0;
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.empty-tab p {
+  margin: 0 0 8px;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+/* -------------------------
+   Footer utility bar (white, bottom, as in the reference)
+------------------------- */
+
+.utility-bar {
+  position: fixed;
+  z-index: 20;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 24px;
+  padding: 0 16px;
+  color: var(--text);
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+}
+
+.utility-bar span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.utility-bar span:hover {
+  color: var(--slds-brand);
+}
+
+.environment-label {
+  margin-left: auto;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  cursor: default;
+}
+
+.environment-label:hover {
+  color: var(--text-secondary);
+}
+
+/* -------------------------
+   Record fields row (Lightning record highlights)
+------------------------- */
+
+.record-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 32px;
+  margin-top: 12px;
+}
+
+.record-fields small {
+  display: block;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.record-fields strong {
+  display: block;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 400;
+}
+
+/* -------------------------
+   Card titles with object-style icon badges
+------------------------- */
+
+.card-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.card-title > div {
+  min-width: 0;
+}
+
+.card-icon {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  color: #ffffff;
+  background: var(--slds-brand);
+  border-radius: 50%;
+}
+
+.card-icon-alert {
+  background: #ff9e2c;
+}
+
+/* -------------------------
+   Links
+------------------------- */
+
+a {
+  color: var(--slds-brand);
+  text-decoration: none;
+}
+
+a:hover {
+  color: var(--slds-brand-hover);
+  text-decoration: underline;
+}
+
+/* -------------------------
+   Responsive
+------------------------- */
+
+@media (max-width: 1050px) {
+  .workspace {
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+
+  .content-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .global-header {
+    padding: 0 12px;
+    gap: 10px;
+  }
+
+  .header-brand {
+    min-width: auto;
+  }
+
+  .brand-title {
+    display: none;
+  }
+
+  .global-search {
+    width: auto;
+    flex: 1;
+  }
+
+  .header-actions {
+    gap: 0;
+  }
+
+  .app-navigation {
+    display: none;
+  }
+
+  .mobile-navigation {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 0 12px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--line);
+  }
+
+  .mobile-navigation button {
+    width: 32px;
+    height: 32px;
+    display: grid;
+    place-items: center;
+    color: var(--text);
+    background: transparent;
+    border: 0;
+    border-radius: var(--radius-sm);
+  }
+
+  .mobile-navigation strong {
+    font-size: 14px;
+    font-weight: 700;
+  }
+
+  .mobile-sidebar {
+    display: flex;
+    flex-direction: column;
+    padding: 4px 0;
+    background: var(--surface);
+    border-bottom: 1px solid var(--line);
+    box-shadow: var(--shadow-menu);
+  }
+
+  .mobile-sidebar button {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    color: var(--text);
+    background: transparent;
+    border: 0;
+    font-size: 13px;
+    text-align: left;
+  }
+
+  .mobile-sidebar button:hover {
+    background: var(--surface-hover);
+  }
+
+  .workspace {
+    padding: 12px 12px 36px;
+  }
+
+  .workspace-heading {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .heading-actions {
+    flex-wrap: wrap;
+  }
+
+  .record-banner {
+    padding: 12px;
+  }
+
+  .record-info h2 {
+    font-size: 18px;
+  }
+
+  .kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .global-search {
+    display: none;
+  }
+
+  .workspace-heading h1 {
+    font-size: 20px;
+  }
+
+  .kpi-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .record-banner {
+    gap: 10px;
+  }
+
+  .record-avatar {
+    width: 36px;
+    height: 36px;
+  }
+
+  .utility-bar {
+    gap: 12px;
+    padding: 0 10px;
+    font-size: 11px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
