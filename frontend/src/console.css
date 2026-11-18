@@ -1,0 +1,610 @@
+/* =========================================================
+   Console shell: utility bar, search row, app bar with object
+   and record tabs, and subtab row.
+   Matches the Salesforce Lightning console in the reference
+   screenshots. Tokens are defined once here for the whole app.
+   ========================================================= */
+
+:root {
+  --slds-brand: #0176d3;
+  --slds-brand-hover: #014486;
+  --slds-navy: #032d60;
+  --slds-brand-tint: #eef4ff;
+
+  --page: #f3f2f2;
+  --surface: #ffffff;
+  --surface-hover: #f3f2f2;
+
+  --text: #080707;
+  --text-secondary: #706e6b;
+  --text-tertiary: #3e3e3c;
+
+  --line: #dddbda;
+  --line-strong: #c9c7c5;
+
+  --success: #2e844a;
+  --warning: #8a5a00;
+  --danger: #ba0517;
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-pill: 16px;
+
+  --font: "Salesforce Sans", "Segoe UI", Arial, sans-serif;
+  --shadow-card: 0 1px 2px 0 rgba(0, 0, 0, 0.08);
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 13px;
+}
+
+button,
+input,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+[role="tab"]:focus-visible {
+  outline: 2px solid var(--slds-brand);
+  outline-offset: 1px;
+}
+
+.sf-app {
+  min-height: 100vh;
+  padding-bottom: 40px;
+  background: var(--page);
+}
+
+/* Row 1: utility bar -------------------------------------- */
+
+.sf-utility {
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px 0 10px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+
+.sf-sandbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  margin-left: 14px;
+  padding: 0 12px;
+  color: var(--slds-navy);
+  background: #dbe8fb;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.sf-round-btn {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: var(--slds-brand);
+  border: 0;
+  border-radius: 50%;
+}
+
+/* Row 2: search and actions ------------------------------ */
+
+.sf-searchbar {
+  height: 52px;
+  display: grid;
+  grid-template-columns: 1fr minmax(260px, 520px) 1fr;
+  align-items: center;
+  gap: 12px;
+  padding: 0 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+
+.sf-global-search {
+  grid-column: 2;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px;
+  color: var(--text-secondary);
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-pill);
+}
+
+.sf-global-search:focus-within {
+  border-color: var(--slds-brand);
+  box-shadow: 0 0 0 1px var(--slds-brand);
+}
+
+.sf-global-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font-size: 13px;
+}
+
+.sf-global-actions {
+  grid-column: 3;
+  justify-self: end;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sf-favorites {
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 6px;
+  color: var(--text);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+}
+
+.sf-add {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: var(--slds-brand);
+  border: 0;
+  border-radius: 50%;
+}
+
+.sf-icon-btn {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  color: var(--text-tertiary);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-sm);
+}
+
+.sf-icon-btn:hover {
+  background: var(--surface-hover);
+}
+
+.sf-avatar-btn {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: #3e3e3c;
+  border: 0;
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+/* Row 3: app bar ----------------------------------------- */
+
+.sf-appbar {
+  min-height: 44px;
+  display: flex;
+  align-items: stretch;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+
+.sf-appbar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px 0 8px;
+  border-right: 1px solid var(--line);
+}
+
+.sf-app-name {
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.sf-objects {
+  display: flex;
+  align-items: stretch;
+  border-right: 1px solid var(--line);
+}
+
+.sf-object {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 14px;
+  background: transparent;
+  border: 0;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.sf-object:hover {
+  background: var(--surface-hover);
+}
+
+.sf-object.active::after {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 2px;
+  background: var(--slds-brand);
+  content: "";
+}
+
+.sf-tabstrip {
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.sf-rtab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  border-right: 1px solid var(--line);
+}
+
+.sf-rtab-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 44px;
+  padding: 0 8px 0 14px;
+  background: transparent;
+  border: 0;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.sf-rtab-label:hover,
+.sf-rtab:hover {
+  background: var(--surface-hover);
+}
+
+.sf-rtab.active {
+  background: var(--surface);
+}
+
+.sf-rtab.active .sf-rtab-label {
+  color: var(--slds-brand);
+  font-weight: 600;
+}
+
+.sf-rtab.active::after {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 2px;
+  background: var(--slds-brand);
+  content: "";
+}
+
+.sf-rtab-chev {
+  color: var(--text-secondary);
+}
+
+.sf-rtab-close {
+  width: 22px;
+  height: 22px;
+  margin-right: 6px;
+  display: grid;
+  place-items: center;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-sm);
+}
+
+.sf-rtab-close:hover {
+  color: var(--text);
+  background: #dddbda;
+}
+
+.sf-rtab-close:focus-visible {
+  outline: 2px solid var(--slds-brand);
+}
+
+/* Row 4: subtabs of the active case --------------------- */
+
+.sf-subtabs {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  height: 40px;
+  padding: 0 12px;
+  background: #f4f6f9;
+  border-bottom: 1px solid var(--line);
+  overflow-x: auto;
+}
+
+.sf-subtab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px 0 12px;
+  color: var(--text);
+  background: transparent;
+  border: 0;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.sf-subtab-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  font-size: 13px;
+}
+
+.sf-subtab.active,
+.sf-subtab.fraud.active {
+  background: #d8e8fb;
+  color: var(--slds-brand);
+  font-weight: 600;
+}
+
+.sf-subtab.fraud {
+  display: inline-flex;
+  padding-right: 4px;
+}
+
+.sf-subtab.fraud .sf-subtab-label {
+  height: 40px;
+  padding: 0 4px;
+}
+
+.sf-subtab:hover:not(.active) {
+  background: #e7ebf1;
+}
+
+/* Main area ----------------------------------------------- */
+
+.sf-main-area {
+  padding: 16px 20px 24px;
+  max-width: 1500px;
+  margin: 0 auto;
+}
+
+/* Footer utility bar ------------------------------------ */
+
+.sf-footer {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 8px;
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+  overflow-x: auto;
+  z-index: 20;
+}
+
+.sf-footer > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  color: var(--text);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.sf-footer-active {
+  border: 1px solid var(--slds-brand);
+  border-radius: var(--radius-sm);
+  color: var(--slds-brand) !important;
+  font-weight: 600;
+}
+
+/* Customers page fallbacks use these tokens too */
+.customers-page {
+  padding-top: 0;
+}
+
+@media (max-width: 960px) {
+  .sf-searchbar {
+    grid-template-columns: 1fr;
+  }
+
+  .sf-global-search,
+  .sf-global-actions {
+    grid-column: 1;
+    justify-self: stretch;
+  }
+}
+
+/* Object switcher (Cases dropdown in the app bar) ---------- */
+
+.sf-object-switch {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  border-right: 1px solid var(--line);
+}
+
+.sf-object-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 150px;
+  padding: 0 14px;
+  background: transparent;
+  border: 0;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.sf-object-trigger:hover,
+.sf-object-trigger.open {
+  background: var(--surface-hover);
+}
+
+.sf-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+}
+
+.sf-object-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 31;
+  width: 260px;
+  padding: 8px 0;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+}
+
+.sf-menu-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 40px;
+  padding: 0 16px;
+  background: transparent;
+  border: 0;
+  border-left: 3px solid transparent;
+  font-size: 13px;
+  text-align: left;
+}
+
+.sf-menu-item:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+
+.sf-menu-item.selected {
+  background: #dfe9fb;
+  border-left-color: var(--slds-brand);
+  font-weight: 600;
+}
+
+.sf-menu-item:disabled {
+  color: var(--text-secondary);
+  cursor: default;
+}
+
+.sf-menu-icon {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.sf-menu-edit {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  margin-top: 6px;
+  padding: 0 16px;
+  background: transparent;
+  border: 0;
+  border-top: 1px solid var(--line);
+  color: var(--slds-brand);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+}
+
+.sf-menu-edit:disabled {
+  cursor: default;
+}
+
+/* Edge gap: every element inside the app keeps at least 5px from the
+   left, right and bottom edges of the page. */
+.sf-app {
+  padding-left: 5px;
+  padding-right: 5px;
+  padding-bottom: 52px;
+}
+
+.sf-footer {
+  left: 5px;
+  right: 5px;
+  bottom: 5px;
+  border-radius: var(--radius-sm);
+}
+
+/* Full-width content: containers and tables use the whole page width,
+   keeping a small inner gutter. */
+.sf-main-area {
+  max-width: none;
+  padding: 16px 12px 24px;
+}
+
+.sf-main-area .customers-page {
+  max-width: none;
+  padding: 0;
+}
+
+.sf-main-area .customers-page .cust-form,
+.sf-main-area .customers-page .cust-card {
+  width: 100%;
+}
+
+/* Salesforce logo in the app bar */
+.sf-logo {
+  width: 36px;
+  height: 26px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+/* Logo sits on the search row, left of the search field (reference layout) */
+.sf-searchbar > .sf-logo {
+  grid-column: 1;
+  justify-self: start;
+  width: 42px;
+  height: 30px;
+}
