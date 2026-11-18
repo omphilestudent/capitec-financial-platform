@@ -86,7 +86,7 @@ const errorMessage = (err) => {
   return err.response.data?.message || 'Something went wrong. Please try again.'
 }
 
-export default function Customers({ target = null }) {
+export default function Customers({ openCustomerId = null }) {
   const [savedNav] = useState(readSavedNav)
 
   const [view, setView] = useState(savedNav ? savedNav.view : 'list') // list | pick | new | detail | account
@@ -150,9 +150,15 @@ export default function Customers({ target = null }) {
   }
 
   // After a refresh on the customer record, reload that customer.
-  // Skipped when a case has asked for a specific customer.
   useEffect(() => {
-    if (savedNav?.view === 'detail' && !target) loadCustomer(savedNav.customerId)
+    if (openCustomerId) {
+      setActiveCustomerId(openCustomerId)
+      setDetailTab('details')
+      setView('detail')
+      loadCustomer(openCustomerId)
+      return
+    }
+    if (savedNav?.view === 'detail') loadCustomer(savedNav.customerId)
   }, [])
 
   useEffect(() => {
@@ -213,40 +219,6 @@ export default function Customers({ target = null }) {
     openDetail(activeCustomerId)
     setBanner({ text: message, tone: 'success' })
   }
-
-  // A case asked to open a client. Use its customer ID when it has one,
-  // otherwise find the customer whose full name matches the case's client name.
-  useEffect(() => {
-    if (!target) return undefined
-    let active = true
-
-    const openTarget = async () => {
-      if (target.customerId) {
-        openDetail(target.customerId)
-        return
-      }
-      try {
-        const list = await getCustomers()
-        if (!active) return
-        const wanted = (target.name || '').trim().toLowerCase()
-        const match = list.find((c) => `${c.firstName} ${c.lastName}`.trim().toLowerCase() === wanted)
-        if (match) {
-          openDetail(match.id)
-        } else {
-          setView('list')
-          setBanner({ text: `No customer named “${target.name}” was found.`, tone: 'danger' })
-        }
-      } catch (err) {
-        if (active) {
-          setView('list')
-          setBanner({ text: errorMessage(err), tone: 'danger' })
-        }
-      }
-    }
-
-    openTarget()
-    return () => { active = false }
-  }, [target])
 
   const handleChange = (event) => {
     const { name, value } = event.target

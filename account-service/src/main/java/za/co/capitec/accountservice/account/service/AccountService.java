@@ -6,6 +6,9 @@ import org.springframework.transaction.annotation.Transactional;
 import za.co.capitec.accountservice.account.dto.AccountResponse;
 import za.co.capitec.accountservice.account.dto.CreateAccountRequest;
 import za.co.capitec.accountservice.account.entity.Account;
+import za.co.capitec.accountservice.account.event.AccountOpenedEvent;
+import za.co.capitec.accountservice.common.messaging.OutboxWriter;
+import java.time.Instant;
 import za.co.capitec.accountservice.account.repository.AccountRepository;
 import za.co.capitec.accountservice.common.exception.AccountNotFoundException;
 import za.co.capitec.accountservice.common.exception.CustomerNotFoundException;
@@ -20,15 +23,18 @@ public class AccountService {
     private final AccountRepository accountRepository;
     private final CustomerServiceClient customerServiceClient;
     private final AccountNumberGenerator accountNumberGenerator;
+    private final OutboxWriter outboxWriter;
 
     public AccountService(
             AccountRepository accountRepository,
             CustomerServiceClient customerServiceClient,
-            AccountNumberGenerator accountNumberGenerator
+            AccountNumberGenerator accountNumberGenerator,
+            OutboxWriter outboxWriter
     ) {
         this.accountRepository = accountRepository;
         this.customerServiceClient = customerServiceClient;
         this.accountNumberGenerator = accountNumberGenerator;
+        this.outboxWriter = outboxWriter;
     }
 
     public AccountResponse createAccount(CreateAccountRequest request) {
@@ -47,7 +53,26 @@ public class AccountService {
                 request.accountType()
         );
 
-        return AccountResponse.from(accountRepository.save(account));
+        Account saved = accountRepository.save(account);
+
+        // Written to the outbox in the same transaction as the account.
+        java.util.UUID eventId = java.util.UUID.randomUUID();
+        outboxWriter.write(
+                eventId,
+                AccountOpenedEvent.TOPIC,
+                saved.getId().toString(),
+                AccountOpenedEvent.EVENT_TYPE,
+                new AccountOpenedEvent(
+                        eventId,
+                        saved.getId(),
+                        saved.getCustomerId(),
+                        saved.getAccountNumber(),
+                        saved.getAccountType().name(),
+                        Instant.now()
+                )
+        );
+
+        return AccountResponse.from(saved);
     }
 
     @Transactional(readOnly = true)

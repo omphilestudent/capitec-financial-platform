@@ -10,6 +10,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import za.co.capitec.accountservice.account.dto.CreateAccountRequest;
 import za.co.capitec.accountservice.account.entity.Account;
 import za.co.capitec.accountservice.account.entity.AccountType;
+import za.co.capitec.accountservice.common.messaging.OutboxWriter;
 import za.co.capitec.accountservice.account.repository.AccountRepository;
 import za.co.capitec.accountservice.common.exception.AccountNotFoundException;
 import za.co.capitec.accountservice.common.exception.CustomerNotFoundException;
@@ -31,6 +32,9 @@ class AccountServiceTest {
 
     @Mock
     private AccountNumberGenerator accountNumberGenerator;
+
+    @Mock
+    private OutboxWriter outboxWriter;
 
     @InjectMocks
     private AccountService accountService;
@@ -57,8 +61,14 @@ class AccountServiceTest {
         when(accountRepository.existsByAccountNumber("12345678901"))
                 .thenReturn(false);
 
+        // JPA assigns the ID on persist; the stub does the same.
         when(accountRepository.save(any(Account.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
+                .thenAnswer(invocation -> {
+                    Account saved = invocation.getArgument(0);
+                    org.springframework.test.util.ReflectionTestUtils.setField(
+                            saved, "id", UUID.randomUUID());
+                    return saved;
+                });
 
         var response = accountService.createAccount(request);
 

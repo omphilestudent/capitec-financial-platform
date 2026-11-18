@@ -1,0 +1,12 @@
+services:
+  kafka:
+    image: apache/kafka:4.4.0
+    container_name: capitec-kafka
+    restart: unless-stopped
+    ports:
+      - "9092:9092"
+    volumes:
+      - kafka_data:/tmp/kraft-combined-logs
+
+volumes:
+  kafka_data:

@@ -3,6 +3,7 @@ import {
   AlertCircle, CheckCircle2, ChevronDown, ChevronRight, Loader2, Pencil, Trash2, Wallet,
 } from 'lucide-react'
 import { getAccountById, removeAccount, updateAccount } from '../services/accountService'
+import StatementsPanel from './Statements'
 import './Accounts.css'
 
 export const ACCOUNT_TYPES = [
@@ -258,6 +259,10 @@ export default function AccountRecord({ accountId, onBack, onRemoved }) {
                 ['Last updated', formatDate(account.updatedAt)],
               ]}
             />
+          </Section>
+
+          <Section title="Statements">
+            <StatementsPanel customerId={account.customerId} caseAccount={account} />
           </Section>
         </div>
       </div>
