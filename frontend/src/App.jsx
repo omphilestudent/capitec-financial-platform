@@ -1,303 +1,261 @@
-
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
-  LayoutGrid, Home, ArrowLeftRight, ShieldAlert, FileText,
-  Settings, Search, Bell, HelpCircle, Plus, ChevronDown,
-  Menu, X, UserRound, Wallet, TrendingUp, Clock,
-  MoreHorizontal, ArrowUpRight, ArrowDownLeft
+  Menu, Search, Star, Plus, HelpCircle, Settings, Bell, ChevronDown, X,
+  LayoutGrid, Briefcase, ShieldAlert, StickyNote, Home, Crown, ContactRound,
+  UserPlus, Pencil,
 } from 'lucide-react'
-import './App.css'
+import './console.css'
 import appLogo from './assets/salesforce-logo.png'
+import { CaseList, CaseRecord, FraudRecord } from './pages/Cases'
+import Customers from './pages/Customers'
+import HomePage from './pages/Home'
+import { getCase, getFraud } from './data/mockCases'
 
-const navItems = [
-  { name: 'Home', icon: Home },
-  { name: 'Transactions', icon: ArrowLeftRight },
-  { name: 'Fraud Monitoring', icon: ShieldAlert },
-  { name: 'Statements', icon: FileText },
+// Object switcher entries. Only objects with a page here are navigable.
+const OBJECT_MENU = [
+  { name: 'Home', icon: Home, color: '#ff538a' },
+  { name: 'Customers', icon: UserPlus, color: '#5867e8' },
+  { name: 'Leads', icon: Star, color: '#1589ee' },
+  { name: 'Opportunities', icon: Crown, color: '#ff7a2b' },
+  { name: 'Contacts', icon: ContactRound, color: '#9050e9' },
+  { name: 'Cases', icon: Briefcase, color: '#e83e8c' },
 ]
+const NAVIGABLE = new Set(['Home', 'Cases', 'Customers'])
 
-const transactions = [
-  { id: 'TXN-10021', merchant: 'Woolworths', category: 'Shopping', date: '16 Nov 2026', amount: '-R 1,250.00', status: 'Completed', type: 'debit' },
-  { id: 'TXN-10020', merchant: 'Salary Deposit', category: 'Income', date: '15 Nov 2026', amount: '+R 16,880.50', status: 'Completed', type: 'credit' },
-  { id: 'TXN-10019', merchant: 'Checkers', category: 'Groceries', date: '14 Nov 2026', amount: '-R 845.60', status: 'Completed', type: 'debit' },
-  { id: 'TXN-10018', merchant: 'Uber', category: 'Transport', date: '13 Nov 2026', amount: '-R 186.00', status: 'Completed', type: 'debit' },
-]
+// Remember the active object per browser tab so a refresh keeps the user on
+// the same page. sessionStorage can be unavailable (private mode, blocked
+// storage), so every access is guarded and falls back to the default.
+const OBJECT_STORAGE_KEY = 'fp.activeObject'
+const DEFAULT_OBJECT = 'Cases'
 
-function App() {
-  const [activePage, setActivePage] = useState('Home')
-  const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [activeTab, setActiveTab] = useState('Overview')
-
-  const navigate = (page) => {
-    setActivePage(page)
-    setSidebarOpen(false)
+function readStoredObject() {
+  try {
+    const stored = window.sessionStorage.getItem(OBJECT_STORAGE_KEY)
+    return NAVIGABLE.has(stored) ? stored : DEFAULT_OBJECT
+  } catch {
+    return DEFAULT_OBJECT
   }
-
-  return (
-      <div className="salesforce-shell">
-        <header className="global-header">
-          <div className="header-brand">
-            <button className="launcher-button" aria-label="App launcher">
-              <LayoutGrid size={21} />
-            </button>
-            <img className="app-logo" src={appLogo} alt="App logo" />
-            <div className="brand-title">
-              <strong>Financial Intelligence</strong>
-              <span>CAPITEC</span>
-            </div>
-          </div>
-
-          <div className="global-search">
-            <Search size={17} />
-            <input placeholder="Search this application..." />
-            <kbd>⌘ K</kbd>
-          </div>
-
-          <div className="header-actions">
-            <button aria-label="Help"><HelpCircle size={19} /></button>
-            <button aria-label="Notifications" className="notification-icon">
-              <Bell size={19} /><i />
-            </button>
-            <div className="header-user">OM</div>
-            <button aria-label="User menu"><ChevronDown size={15} /></button>
-          </div>
-        </header>
-
-        <div className="app-navigation">
-          <button className="app-name">
-            <span className="app-symbol"><Wallet size={17} /></span>
-            Financial Platform
-            <ChevronDown size={15} />
-          </button>
-
-          <nav className="navigation-tabs">
-            {navItems.map(({ name, icon: Icon }) => (
-                <button
-                    key={name}
-                    className={activePage === name ? 'selected' : ''}
-                    onClick={() => navigate(name)}
-                >
-                  <Icon size={16} />
-                  {name}
-                </button>
-            ))}
-          </nav>
-
-          <button className="navigation-settings" onClick={() => navigate('Settings')}>
-            <Settings size={17} />
-          </button>
-        </div>
-
-        <div className="mobile-navigation">
-          <button onClick={() => setSidebarOpen(!sidebarOpen)}>
-            {sidebarOpen ? <X /> : <Menu />}
-          </button>
-          <strong>{activePage}</strong>
-        </div>
-
-        {sidebarOpen && (
-            <div className="mobile-sidebar">
-              {navItems.map(({ name, icon: Icon }) => (
-                  <button key={name} onClick={() => navigate(name)}>
-                    <Icon size={17} /> {name}
-                  </button>
-              ))}
-            </div>
-        )}
-
-        <main className="workspace">
-          <div className="workspace-heading">
-            <div>
-              <div className="breadcrumbs">Financial Platform <span>›</span> {activePage}</div>
-              <h1>{activePage === 'Home' ? 'Financial Overview' : activePage}</h1>
-              <p>Welcome back, Omphile. Here's what's happening today.</p>
-            </div>
-            <div className="heading-actions">
-              <button className="lightning-button secondary">
-                <Clock size={15} /> Recent activity
-              </button>
-              <button className="lightning-button primary" onClick={() => navigate('Statements')}>
-                <Plus size={16} /> New statement
-              </button>
-            </div>
-          </div>
-
-          {activePage === 'Home' ? (
-              <>
-                <div className="workspace-tabs">
-                  {['Overview', 'My Accounts', 'Analytics'].map(tab => (
-                      <button
-                          key={tab}
-                          onClick={() => setActiveTab(tab)}
-                          className={activeTab === tab ? 'active' : ''}
-                      >
-                        {tab}
-                      </button>
-                  ))}
-                </div>
-
-                <section className="record-banner">
-                  <div className="record-avatar"><Wallet size={24} /></div>
-                  <div className="record-info">
-                    <span>Financial portfolio</span>
-                    <h2>Personal Banking Overview</h2>
-                    <div className="record-fields">
-                      <div><small>Status</small><strong>Active</strong></div>
-                      <div><small>Accounts</small><strong>3</strong></div>
-                      <div><small>Last updated</small><strong>16 Nov 2026</strong></div>
-                    </div>
-                  </div>
-                  <button className="record-menu"><MoreHorizontal /></button>
-                </section>
-
-                {activeTab === 'Overview' && (
-                    <>
-                      <div className="section-title">
-                        <h2>Key Performance Indicators</h2>
-                        <span>Demonstration data</span>
-                      </div>
-
-                      <section className="kpi-grid">
-                        <Kpi title="Total balance" value="R 48,250.75" change="+8.2%" icon={Wallet} />
-                        <Kpi title="Total income" value="R 32,880.50" change="+12.5%" icon={ArrowDownLeft} />
-                        <Kpi title="Total expenses" value="R 12,450.20" change="-3.4%" icon={ArrowUpRight} />
-                        <Kpi title="Active accounts" value="3" change="All active" icon={UserRound} />
-                      </section>
-
-                      <div className="content-grid">
-                        <section className="lightning-card">
-                          <div className="card-heading">
-                            <div className="card-title">
-                              <span className="card-icon"><ArrowLeftRight size={16} /></span>
-                              <div>
-                                <h2>Recent Transactions</h2>
-                                <p>Latest financial activity</p>
-                              </div>
-                            </div>
-                            <button className="link-button" onClick={() => navigate('Transactions')}>View All</button>
-                          </div>
-
-                          <div className="data-table">
-                            <table>
-                              <thead>
-                              <tr>
-                                <th>Transaction</th>
-                                <th>Category</th>
-                                <th>Date</th>
-                                <th>Amount</th>
-                                <th>Status</th>
-                              </tr>
-                              </thead>
-                              <tbody>
-                              {transactions.map(tx => (
-                                  <tr key={tx.id}>
-                                    <td>
-                                      <div className="transaction-cell">
-                                  <span className={`transaction-icon ${tx.type}`}>
-                                    {tx.type === 'credit' ? <ArrowDownLeft size={16} /> : <ArrowUpRight size={16} />}
-                                  </span>
-                                        <div><strong>{tx.merchant}</strong><small>{tx.id}</small></div>
-                                      </div>
-                                    </td>
-                                    <td>{tx.category}</td>
-                                    <td>{tx.date}</td>
-                                    <td className={tx.type === 'credit' ? 'credit' : 'debit'}>{tx.amount}</td>
-                                    <td><span className="success-pill">{tx.status}</span></td>
-                                  </tr>
-                              ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        </section>
-
-                        <section className="lightning-card">
-                          <div className="card-heading">
-                            <div className="card-title">
-                              <span className="card-icon card-icon-alert"><ShieldAlert size={16} /></span>
-                              <div><h2>Fraud Monitoring</h2><p>Security overview</p></div>
-                            </div>
-                            <span className="live-pill">LIVE</span>
-                          </div>
-
-                          <div className="fraud-banner">
-                            <ShieldAlert size={23} />
-                            <div><strong>3 alerts require attention</strong><span>Review flagged activity</span></div>
-                          </div>
-
-                          <div className="fraud-item">
-                            <span className="risk-dot high" />
-                            <div><strong>High Risk Alert</strong><small>Unusual transaction pattern</small></div>
-                            <span>10:42</span>
-                          </div>
-                          <div className="fraud-item">
-                            <span className="risk-dot medium" />
-                            <div><strong>Medium Risk Alert</strong><small>Unrecognised merchant</small></div>
-                            <span>09:18</span>
-                          </div>
-                          <div className="fraud-item">
-                            <span className="risk-dot medium" />
-                            <div><strong>Medium Risk Alert</strong><small>Multiple transaction attempts</small></div>
-                            <span>08:56</span>
-                          </div>
-
-                          <button className="link-button full-link" onClick={() => navigate('Fraud Monitoring')}>
-                            Open fraud monitoring →
-                          </button>
-                        </section>
-                      </div>
-                    </>
-                )}
-
-                {activeTab === 'My Accounts' && (
-                    <section className="lightning-card empty-tab">
-                      <Wallet size={30} />
-                      <h2>My Accounts</h2>
-                      <p>Account records and balances will appear here.</p>
-                    </section>
-                )}
-
-                {activeTab === 'Analytics' && (
-                    <section className="lightning-card empty-tab">
-                      <TrendingUp size={30} />
-                      <h2>Financial Analytics</h2>
-                      <p>Financial trends and reports will appear here.</p>
-                    </section>
-                )}
-              </>
-          ) : (
-              <section className="lightning-card empty-tab">
-                {activePage === 'Transactions' && <ArrowLeftRight size={32} />}
-                {activePage === 'Fraud Monitoring' && <ShieldAlert size={32} />}
-                {activePage === 'Statements' && <FileText size={32} />}
-                {activePage === 'Settings' && <Settings size={32} />}
-                <h2>{activePage}</h2>
-                <p>This workspace is ready for its next implementation milestone.</p>
-                <button className="lightning-button primary" onClick={() => navigate('Home')}>
-                  Return to overview
-                </button>
-              </section>
-          )}
-        </main>
-
-        <footer className="utility-bar">
-          <span><Bell size={14} /> Notifications</span>
-          <span><Clock size={14} /> System Activity</span>
-          <span className="environment-label">DEV ENVIRONMENT</span>
-        </footer>
-      </div>
-  )
 }
 
-function Kpi({ title, value, change, icon: Icon }) {
+function App() {
+  const [object, setObject] = useState(readStoredObject)
+  const [menuOpen, setMenuOpen] = useState(false)
+
+  useEffect(() => {
+    try {
+      window.sessionStorage.setItem(OBJECT_STORAGE_KEY, object)
+    } catch {
+      // Storage unavailable: the page still works, it just won't survive a refresh.
+    }
+  }, [object])
+
+  const chooseObject = (name) => {
+    if (!NAVIGABLE.has(name)) return
+    setObject(name)
+    if (name === 'Cases') setActiveCaseId(null)
+    setMenuOpen(false)
+  }
+
+  // Top row: one tab per opened case. activeCaseId null shows the case list.
+  const [openCases, setOpenCases] = useState([])
+  const [activeCaseId, setActiveCaseId] = useState(null)
+
+  // Second row: fraud subtabs opened from a case, and which subtab is active
+  // (null = the case record itself).
+  const [caseFrauds, setCaseFrauds] = useState({})
+  const [activeSub, setActiveSub] = useState(null)
+
+  const openCase = (id) => {
+    setOpenCases((ids) => (ids.includes(id) ? ids : [...ids, id]))
+    setActiveCaseId(id)
+    setActiveSub(null)
+    setObject('Cases')
+  }
+
+  const closeCase = (id, event) => {
+    event.stopPropagation()
+    setOpenCases((ids) => ids.filter((x) => x !== id))
+    setCaseFrauds(({ [id]: _removed, ...rest }) => rest)
+    if (activeCaseId === id) {
+      setActiveCaseId(null)
+      setActiveSub(null)
+    }
+  }
+
+  const openFraud = (fraudId) => {
+    const caseId = getFraud(fraudId).caseId
+    setCaseFrauds((map) => {
+      const current = map[caseId] || []
+      return current.includes(fraudId) ? map : { ...map, [caseId]: [...current, fraudId] }
+    })
+    setOpenCases((ids) => (ids.includes(caseId) ? ids : [...ids, caseId]))
+    setActiveCaseId(caseId)
+    setActiveSub(fraudId)
+    setObject('Cases')
+  }
+
+  const closeFraud = (fraudId, event) => {
+    event.stopPropagation()
+    setCaseFrauds((map) => ({
+      ...map,
+      [activeCaseId]: (map[activeCaseId] || []).filter((f) => f !== fraudId),
+    }))
+    if (activeSub === fraudId) setActiveSub(null)
+  }
+
+  const activeCase = activeCaseId ? getCase(activeCaseId) : null
+  const activeFraud = activeSub ? getFraud(activeSub) : null
+  const subtabs = activeCaseId ? (caseFrauds[activeCaseId] || []) : []
+
   return (
-      <section className="lightning-card kpi-card">
-        <div className="kpi-heading">
-          <span>{title}</span>
-          <Icon size={19} />
+    <div className="sf-app">
+      {/* Row 1: utility bar with sandbox badge */}
+      <div className="sf-utility">
+        <button className="sf-icon-btn" aria-label="Menu"><Menu size={20} /></button>
+        <span className="sf-sandbox"><Settings size={14} /> Sandbox</span>
+        <button className="sf-round-btn" aria-label="Account menu"><ChevronDown size={16} /></button>
+      </div>
+
+      {/* Row 2: search + global actions */}
+      <div className="sf-searchbar">
+        <img className="sf-logo" src={appLogo} alt="Salesforce" />
+
+        <label className="sf-global-search">
+          <Search size={16} aria-hidden="true" />
+          <input placeholder="Search..." aria-label="Search" />
+        </label>
+
+        <div className="sf-global-actions">
+          <div className="sf-favorites" aria-label="Favorites">
+            <Star size={16} />
+            <ChevronDown size={12} />
+          </div>
+          <button className="sf-add" aria-label="New"><Plus size={18} /></button>
+          <button className="sf-icon-btn" aria-label="Help"><HelpCircle size={19} /></button>
+          <button className="sf-icon-btn" aria-label="Setup"><Settings size={18} /></button>
+          <button className="sf-icon-btn" aria-label="Notifications"><Bell size={18} /></button>
+          <button className="sf-avatar-btn" aria-label="User menu">OM</button>
         </div>
-        <strong>{value}</strong>
-        <div className="kpi-change"><TrendingUp size={13} /> {change}</div>
-      </section>
+      </div>
+
+      {/* Row 3: app bar, object tab and open case tabs */}
+      <div className="sf-appbar">
+        <div className="sf-appbar-left">
+          <button className="sf-icon-btn" aria-label="App launcher"><LayoutGrid size={20} /></button>
+          <span className="sf-app-name">Financial Platform</span>
+        </div>
+
+        <div className="sf-object-switch" onKeyDown={(e) => e.key === 'Escape' && setMenuOpen(false)}>
+          <button
+            className={`sf-object-trigger${menuOpen ? ' open' : ''}`}
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+            onClick={() => setMenuOpen((open) => !open)}
+          >
+            {object}
+            <ChevronDown size={14} />
+          </button>
+
+          {menuOpen && (
+            <>
+              <div className="sf-menu-backdrop" onClick={() => setMenuOpen(false)} />
+              <div className="sf-object-menu" role="menu" aria-label="Objects">
+                {OBJECT_MENU.map(({ name, icon: Icon, color }) => {
+                  const selected = object === name
+                  const enabled = NAVIGABLE.has(name)
+                  return (
+                    <button
+                      key={name}
+                      role="menuitem"
+                      className={`sf-menu-item${selected ? ' selected' : ''}`}
+                      disabled={!enabled}
+                      title={enabled ? undefined : 'Not available yet'}
+                      onClick={() => chooseObject(name)}
+                    >
+                      <span className="sf-menu-icon" style={{ background: color }}>
+                        <Icon size={16} />
+                      </span>
+                      {name}
+                    </button>
+                  )
+                })}
+                <button className="sf-menu-edit" disabled>
+                  <Pencil size={14} /> Edit
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+
+        <div className="sf-tabstrip" role="tablist" aria-label="Open records">
+          {openCases.map((id) => {
+            const active = object === 'Cases' && activeCaseId === id
+            return (
+              <div key={id} className={`sf-rtab${active ? ' active' : ''}`}>
+                <button role="tab" aria-selected={active} className="sf-rtab-label" onClick={() => openCase(id)}>
+                  <Briefcase size={14} />
+                  {id} | Case
+                  <ChevronDown size={13} className="sf-rtab-chev" />
+                </button>
+                <button className="sf-rtab-close" aria-label={`Close case ${id}`} onClick={(e) => closeCase(id, e)}>
+                  <X size={13} />
+                </button>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Row 4: subtabs of the active case (case record + its fraud records) */}
+      {object === 'Cases' && activeCaseId && (
+        <div className="sf-subtabs" role="tablist" aria-label="Case subtabs">
+          <button
+            role="tab"
+            aria-selected={!activeSub}
+            className={`sf-subtab${!activeSub ? ' active' : ''}`}
+            onClick={() => setActiveSub(null)}
+          >
+            <Briefcase size={14} />
+            {activeCaseId} | Case
+          </button>
+
+          {subtabs.map((fraudId) => (
+            <div key={fraudId} className={`sf-subtab fraud${activeSub === fraudId ? ' active' : ''}`}>
+              <button role="tab" aria-selected={activeSub === fraudId} className="sf-subtab-label" onClick={() => setActiveSub(fraudId)}>
+                <ShieldAlert size={14} />
+                {fraudId}
+                <ChevronDown size={13} />
+              </button>
+              <button className="sf-rtab-close" aria-label={`Close ${fraudId}`} onClick={(e) => closeFraud(fraudId, e)}>
+                <X size={13} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <main className="sf-main-area">
+        {object === 'Home' && <HomePage onOpenCase={openCase} onNavigate={chooseObject} />}
+
+        {object === 'Customers' && <Customers />}
+
+        {object === 'Cases' && !activeCase && <CaseList onOpen={openCase} />}
+
+        {object === 'Cases' && activeCase && !activeFraud && (
+          <CaseRecord key={activeCase.id} caseItem={activeCase} onOpenFraud={openFraud} />
+        )}
+
+        {object === 'Cases' && activeCase && activeFraud && (
+          <FraudRecord key={activeFraud.id} fraud={activeFraud} onOpenCase={openCase} />
+        )}
+      </main>
+
+      {/* Bottom utility bar */}
+      <footer className="sf-footer">
+        <span><Bell size={14} /> Notifications</span>
+        <span><StickyNote size={14} /> Notes</span>
+      </footer>
+    </div>
   )
 }
 

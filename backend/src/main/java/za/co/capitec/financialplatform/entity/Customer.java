@@ -1,4 +1,3 @@
-
 package za.co.capitec.financialplatform.entity;
 
 import jakarta.persistence.*;
@@ -25,6 +24,10 @@ public class Customer {
     @Column(name = "phone_number", length = 20)
     private String phoneNumber;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "client_type", nullable = false, length = 30)
+    private ClientType clientType;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -32,6 +35,24 @@ public class Customer {
     private LocalDateTime updatedAt;
 
     protected Customer() {
+    }
+
+    public static Customer create(
+            String firstName,
+            String lastName,
+            String email,
+            String phoneNumber,
+            ClientType clientType
+    ) {
+        Customer customer = new Customer();
+
+        customer.firstName = firstName;
+        customer.lastName = lastName;
+        customer.email = email;
+        customer.phoneNumber = phoneNumber;
+        customer.clientType = clientType;
+
+        return customer;
     }
 
     @PrePersist
@@ -80,6 +101,10 @@ public class Customer {
 
     public void setPhoneNumber(String phoneNumber) {
         this.phoneNumber = phoneNumber;
+    }
+
+    public ClientType getClientType() {
+        return clientType;
     }
 
     public LocalDateTime getCreatedAt() {
