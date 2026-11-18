@@ -1,21 +1,333 @@
-  services:
-    postgres:
-      image: postgres:17
-      container_name: capitec-postgres
-      restart: unless-stopped
-      environment:
-        POSTGRES_DB: financial_platform
-        POSTGRES_USER: app_user
-        POSTGRES_PASSWORD: local_dev_password
-      ports:
-        - "5433:5432"
-      volumes:
-        - postgres_data:/var/lib/postgresql/data
-      healthcheck:
-        test: [ "CMD-SHELL", "pg_isready -U app_user -d financial_platform" ]
-        interval: 10s
-        timeout: 5s
-        retries: 5
+# Capitec Financial Intelligence Platform: full local stack.
+#
+# Existing data is preserved: PostgreSQL and Kafka use the volumes that already hold
+# the development data (external, never created or removed by this file). Secrets come
+# from .env (see .env.example), never from this file.
+#
+#   docker compose config                       # validate and print the resolved model
+#   docker compose build                        # build every application image
+#   docker compose up -d                        # start the platform
+#   docker compose ps                           # health status of every container
+#
+# Never run "docker compose down -v": it removes named volumes.
 
-  volumes:
-    postgres_data:
+name: capitec-financial-platform
+
+services:
+  postgres:
+    image: postgres:17
+    container_name: capitec-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: financial_platform
+      POSTGRES_USER: ${POSTGRES_USER:-app_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infrastructure/postgres/initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-app_user} -d financial_platform"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  kafka:
+    image: apache/kafka:4.4.0
+    container_name: capitec-kafka
+    restart: unless-stopped
+    environment:
+      CLUSTER_ID: 5L6g3nShT-eMCtK--X86sw
+      KAFKA_NODE_ID: "1"
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:19092,PLAINTEXT_HOST://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:19092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
+      KAFKA_LOG_DIRS: /tmp/kraft-combined-logs
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: "1"
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: "0"
+    ports:
+      - "9092:9092"
+    volumes:
+      - kafka_data:/tmp/kraft-combined-logs
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 15
+      start_period: 20s
+
+  customer-service:
+    build:
+      context: ./customer-service
+      secrets:
+        - truststore
+    image: capitec/customer-service:local
+    container_name: capitec-customer-service
+    restart: unless-stopped
+    environment:
+      DB_URL: "jdbc:postgresql://postgres:5432/customer_service_db"
+      DB_USERNAME: "${POSTGRES_USER:-app_user}"
+      DB_PASSWORD: "${DB_PASSWORD:?Set DB_PASSWORD in .env}"
+      KAFKA_BOOTSTRAP_SERVERS: "kafka:19092"
+      JAVA_OPTS: "-XX:MaxRAMPercentage=75"
+    ports:
+      - "8081:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+
+  account-service:
+    build:
+      context: ./account-service
+      secrets:
+        - truststore
+    image: capitec/account-service:local
+    container_name: capitec-account-service
+    restart: unless-stopped
+    environment:
+      DB_URL: "jdbc:postgresql://postgres:5432/account_service_db"
+      DB_USERNAME: "${POSTGRES_USER:-app_user}"
+      DB_PASSWORD: "${DB_PASSWORD:?Set DB_PASSWORD in .env}"
+      KAFKA_BOOTSTRAP_SERVERS: "kafka:19092"
+      JAVA_OPTS: "-XX:MaxRAMPercentage=75"
+      CUSTOMER_SERVICE_URL: "http://customer-service:8081"
+    ports:
+      - "8082:8082"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      customer-service:
+        condition: service_healthy
+
+  transaction-service:
+    build:
+      context: ./transaction-service
+      secrets:
+        - truststore
+    image: capitec/transaction-service:local
+    container_name: capitec-transaction-service
+    restart: unless-stopped
+    environment:
+      DB_URL: "jdbc:postgresql://postgres:5432/transaction_service_db"
+      DB_USERNAME: "${POSTGRES_USER:-app_user}"
+      DB_PASSWORD: "${DB_PASSWORD:?Set DB_PASSWORD in .env}"
+      KAFKA_BOOTSTRAP_SERVERS: "kafka:19092"
+      JAVA_OPTS: "-XX:MaxRAMPercentage=75"
+      ACCOUNT_SERVICE_URL: "http://account-service:8082"
+    ports:
+      - "8083:8083"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      account-service:
+        condition: service_healthy
+
+  case-service:
+    build:
+      context: ./case-service
+      secrets:
+        - truststore
+    image: capitec/case-service:local
+    container_name: capitec-case-service
+    restart: unless-stopped
+    environment:
+      DB_URL: "jdbc:postgresql://postgres:5432/case_service_db"
+      DB_USERNAME: "${POSTGRES_USER:-app_user}"
+      DB_PASSWORD: "${DB_PASSWORD:?Set DB_PASSWORD in .env}"
+      KAFKA_BOOTSTRAP_SERVERS: "kafka:19092"
+      JAVA_OPTS: "-XX:MaxRAMPercentage=75"
+    ports:
+      - "8084:8084"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+
+  fraud-detection-service:
+    build:
+      context: ./fraud-detection-service
+      secrets:
+        - truststore
+    image: capitec/fraud-detection-service:local
+    container_name: capitec-fraud-detection-service
+    restart: unless-stopped
+    environment:
+      DB_URL: "jdbc:postgresql://postgres:5432/fraud_detection_db"
+      DB_USERNAME: "${POSTGRES_USER:-app_user}"
+      DB_PASSWORD: "${DB_PASSWORD:?Set DB_PASSWORD in .env}"
+      KAFKA_BOOTSTRAP_SERVERS: "kafka:19092"
+      JAVA_OPTS: "-XX:MaxRAMPercentage=75"
+      ACCOUNT_SERVICE_URL: "http://account-service:8082"
+      FRAUD_SERVICE_PORT: "8085"
+    ports:
+      - "8085:8085"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      account-service:
+        condition: service_healthy
+
+  notification-service:
+    build:
+      context: ./notification-service
+      secrets:
+        - truststore
+    image: capitec/notification-service:local
+    container_name: capitec-notification-service
+    restart: unless-stopped
+    environment:
+      DB_URL: "jdbc:postgresql://postgres:5432/notification_db"
+      DB_USERNAME: "${POSTGRES_USER:-app_user}"
+      DB_PASSWORD: "${DB_PASSWORD:?Set DB_PASSWORD in .env}"
+      KAFKA_BOOTSTRAP_SERVERS: "kafka:19092"
+      JAVA_OPTS: "-XX:MaxRAMPercentage=75"
+    ports:
+      - "8086:8086"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+
+  statement-service:
+    build:
+      context: ./statement-service
+      secrets:
+        - truststore
+    image: capitec/statement-service:local
+    container_name: capitec-statement-service
+    restart: unless-stopped
+    environment:
+      DB_URL: "jdbc:postgresql://postgres:5432/statement_service_db"
+      DB_USERNAME: "${POSTGRES_USER:-app_user}"
+      DB_PASSWORD: "${DB_PASSWORD:?Set DB_PASSWORD in .env}"
+      KAFKA_BOOTSTRAP_SERVERS: "kafka:19092"
+      JAVA_OPTS: "-XX:MaxRAMPercentage=75"
+      ACCOUNT_SERVICE_URL: "http://account-service:8082"
+      TRANSACTION_SERVICE_URL: "http://transaction-service:8083"
+      CUSTOMER_SERVICE_URL: "http://customer-service:8081"
+      STATEMENT_JWT_SECRET: "${STATEMENT_JWT_SECRET:?Set STATEMENT_JWT_SECRET in .env}"
+      STATEMENT_STORAGE_DIR: "/var/lib/capitec/statements"
+    volumes:
+      - ${STATEMENT_STORAGE_HOST_DIR:?Set STATEMENT_STORAGE_HOST_DIR in .env}:/var/lib/capitec/statements
+    ports:
+      - "8087:8087"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      account-service:
+        condition: service_healthy
+      transaction-service:
+        condition: service_healthy
+      customer-service:
+        condition: service_healthy
+
+  aggregation-service:
+    build:
+      context: ./aggregation-service
+      secrets:
+        - truststore
+    image: capitec/aggregation-service:local
+    container_name: capitec-aggregation-service
+    restart: unless-stopped
+    environment:
+      DB_URL: "jdbc:postgresql://postgres:5432/transaction_aggregation_db"
+      DB_USERNAME: "${POSTGRES_USER:-app_user}"
+      DB_PASSWORD: "${DB_PASSWORD:?Set DB_PASSWORD in .env}"
+      KAFKA_BOOTSTRAP_SERVERS: "kafka:19092"
+      JAVA_OPTS: "-XX:MaxRAMPercentage=75"
+      ACCOUNT_SERVICE_URL: "http://account-service:8082"
+      AGGREGATION_JWT_SECRET: "${AGGREGATION_JWT_SECRET:?Set AGGREGATION_JWT_SECRET in .env}"
+    ports:
+      - "8088:8088"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      account-service:
+        condition: service_healthy
+
+  api-gateway:
+    build:
+      context: ./api-gateway
+      secrets:
+        - truststore
+    image: capitec/api-gateway:local
+    container_name: capitec-api-gateway
+    restart: unless-stopped
+    environment:
+# "jdbc:postgresql://postgres:5432/customer_service_db"
+# "${POSTGRES_USER:-app_user}"
+# "${DB_PASSWORD:?Set DB_PASSWORD in .env}"
+# "kafka:19092"
+      JAVA_OPTS: "-XX:MaxRAMPercentage=75"
+      CUSTOMER_SERVICE_URL: "http://customer-service:8081"
+      ACCOUNT_SERVICE_URL: "http://account-service:8082"
+      TRANSACTION_SERVICE_URL: "http://transaction-service:8083"
+      CASE_SERVICE_URL: "http://case-service:8084"
+      FRAUD_SERVICE_URL: "http://fraud-detection-service:8085"
+      NOTIFICATION_SERVICE_URL: "http://notification-service:8086"
+      STATEMENT_SERVICE_URL: "http://statement-service:8087"
+      AGGREGATION_SERVICE_URL: "http://aggregation-service:8088"
+    ports:
+      - "8000:8000"
+    depends_on:
+      customer-service:
+        condition: service_healthy
+      account-service:
+        condition: service_healthy
+      transaction-service:
+        condition: service_healthy
+      case-service:
+        condition: service_healthy
+      fraud-detection-service:
+        condition: service_healthy
+      notification-service:
+        condition: service_healthy
+      statement-service:
+        condition: service_healthy
+      aggregation-service:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+    image: capitec/frontend:local
+    container_name: capitec-frontend
+    restart: unless-stopped
+    ports:
+      - "5173:80"
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+
+secrets:
+  truststore:
+    file: ${TRUSTSTORE_FILE:?Set TRUSTSTORE_FILE in .env to a JKS truststore (see README) or an empty file}
+
+volumes:
+  postgres_data:
+    external: true
+    name: capitec-financial-platform_postgres_data
+  kafka_data:
+    external: true
+    name: kafka_kafka_data

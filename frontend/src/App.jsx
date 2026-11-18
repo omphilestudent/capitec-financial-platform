@@ -1,32 +1,30 @@
 import { useEffect, useState } from 'react'
 import {
-  Menu, Search, Star, Plus, HelpCircle, Settings, Bell, ChevronDown, X,
-  LayoutGrid, Briefcase, ShieldAlert, StickyNote, Home, Crown, ContactRound,
-  UserPlus, Pencil,
+  Menu, Search, Star, Plus, HelpCircle, Settings, Bell, ChevronDown,
+  LayoutGrid, Briefcase, StickyNote, Home, Crown, ContactRound,
+  UserPlus, Pencil, ShieldAlert,
 } from 'lucide-react'
 import './console.css'
+import './pages/Cases.css'
 import appLogo from './assets/salesforce-logo.png'
-import { CaseList, CaseRecord, FraudRecord } from './pages/Cases'
+import { CaseList, CaseRecord } from './pages/Cases'
+import { FraudList, FraudRecordView } from './pages/Fraud'
 import Customers from './pages/Customers'
 import HomePage from './pages/Home'
-import { getCase, getFraud } from './data/mockCases'
 
-// Object switcher entries. Only objects with a page here are navigable.
 const OBJECT_MENU = [
   { name: 'Home', icon: Home, color: '#ff538a' },
   { name: 'Customers', icon: UserPlus, color: '#5867e8' },
+  { name: 'Cases', icon: Briefcase, color: '#e83e8c' },
+  { name: 'Fraud', icon: ShieldAlert, color: '#2e844a' },
   { name: 'Leads', icon: Star, color: '#1589ee' },
   { name: 'Opportunities', icon: Crown, color: '#ff7a2b' },
   { name: 'Contacts', icon: ContactRound, color: '#9050e9' },
-  { name: 'Cases', icon: Briefcase, color: '#e83e8c' },
 ]
-const NAVIGABLE = new Set(['Home', 'Cases', 'Customers'])
+const NAVIGABLE = new Set(['Home', 'Customers', 'Cases', 'Fraud'])
+const DEFAULT_OBJECT = 'Home'
 
-// Remember the active object per browser tab so a refresh keeps the user on
-// the same page. sessionStorage can be unavailable (private mode, blocked
-// storage), so every access is guarded and falls back to the default.
 const OBJECT_STORAGE_KEY = 'fp.activeObject'
-const DEFAULT_OBJECT = 'Cases'
 
 function readStoredObject() {
   try {
@@ -40,91 +38,52 @@ function readStoredObject() {
 function App() {
   const [object, setObject] = useState(readStoredObject)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [caseId, setCaseId] = useState(null)
+  const [fraudId, setFraudId] = useState(null)
+  const [customerId, setCustomerId] = useState(null)
 
   useEffect(() => {
     try {
       window.sessionStorage.setItem(OBJECT_STORAGE_KEY, object)
     } catch {
-      // Storage unavailable: the page still works, it just won't survive a refresh.
+      return undefined
     }
+    return undefined
   }, [object])
 
   const chooseObject = (name) => {
     if (!NAVIGABLE.has(name)) return
+    setCaseId(null)
+    setFraudId(null)
     setObject(name)
-    if (name === 'Cases') setActiveCaseId(null)
     setMenuOpen(false)
   }
 
-  // Top row: one tab per opened case. activeCaseId null shows the case list.
-  const [openCases, setOpenCases] = useState([])
-  const [activeCaseId, setActiveCaseId] = useState(null)
+  const openCase = (id) => {
+    setFraudId(null)
+    setCaseId(id)
+    setObject('Cases')
+  }
 
-  // Second row: fraud subtabs opened from a case, and which subtab is active
-  // (null = the case record itself).
-  const [caseFrauds, setCaseFrauds] = useState({})
-  const [activeSub, setActiveSub] = useState(null)
+  const openFraud = (id) => {
+    setCaseId(null)
+    setFraudId(id)
+    setObject('Fraud')
+  }
 
-  // Set when a case links to a client. The Customers page opens that client.
-  const [customerTarget, setCustomerTarget] = useState(null)
-
-  const openCustomerFromCase = (name, customerId = null) => {
-    setCustomerTarget({ name, customerId, requestedAt: Date.now() })
+  const openCustomer = (id) => {
+    setCustomerId(id)
     setObject('Customers')
   }
 
-  const openCase = (id) => {
-    setOpenCases((ids) => (ids.includes(id) ? ids : [...ids, id]))
-    setActiveCaseId(id)
-    setActiveSub(null)
-    setObject('Cases')
-  }
-
-  const closeCase = (id, event) => {
-    event.stopPropagation()
-    setOpenCases((ids) => ids.filter((x) => x !== id))
-    setCaseFrauds(({ [id]: _removed, ...rest }) => rest)
-    if (activeCaseId === id) {
-      setActiveCaseId(null)
-      setActiveSub(null)
-    }
-  }
-
-  const openFraud = (fraudId) => {
-    const caseId = getFraud(fraudId).caseId
-    setCaseFrauds((map) => {
-      const current = map[caseId] || []
-      return current.includes(fraudId) ? map : { ...map, [caseId]: [...current, fraudId] }
-    })
-    setOpenCases((ids) => (ids.includes(caseId) ? ids : [...ids, caseId]))
-    setActiveCaseId(caseId)
-    setActiveSub(fraudId)
-    setObject('Cases')
-  }
-
-  const closeFraud = (fraudId, event) => {
-    event.stopPropagation()
-    setCaseFrauds((map) => ({
-      ...map,
-      [activeCaseId]: (map[activeCaseId] || []).filter((f) => f !== fraudId),
-    }))
-    if (activeSub === fraudId) setActiveSub(null)
-  }
-
-  const activeCase = activeCaseId ? getCase(activeCaseId) : null
-  const activeFraud = activeSub ? getFraud(activeSub) : null
-  const subtabs = activeCaseId ? (caseFrauds[activeCaseId] || []) : []
-
   return (
     <div className="sf-app">
-      {/* Row 1: utility bar with sandbox badge */}
       <div className="sf-utility">
         <button className="sf-icon-btn" aria-label="Menu"><Menu size={20} /></button>
         <span className="sf-sandbox"><Settings size={14} /> Sandbox</span>
         <button className="sf-round-btn" aria-label="Account menu"><ChevronDown size={16} /></button>
       </div>
 
-      {/* Row 2: search + global actions */}
       <div className="sf-searchbar">
         <img className="sf-logo" src={appLogo} alt="Salesforce" />
 
@@ -146,7 +105,6 @@ function App() {
         </div>
       </div>
 
-      {/* Row 3: app bar, object tab and open case tabs */}
       <div className="sf-appbar">
         <div className="sf-appbar-left">
           <button className="sf-icon-btn" aria-label="App launcher"><LayoutGrid size={20} /></button>
@@ -177,7 +135,7 @@ function App() {
                       role="menuitem"
                       className={`sf-menu-item${selected ? ' selected' : ''}`}
                       disabled={!enabled}
-                      title={enabled ? undefined : 'Not available yet'}
+                      title={enabled ? undefined : 'Not available: no service provides this yet'}
                       onClick={() => chooseObject(name)}
                     >
                       <span className="sf-menu-icon" style={{ background: color }}>
@@ -194,78 +152,30 @@ function App() {
             </>
           )}
         </div>
-
-        <div className="sf-tabstrip" role="tablist" aria-label="Open records">
-          {openCases.map((id) => {
-            const active = object === 'Cases' && activeCaseId === id
-            return (
-              <div key={id} className={`sf-rtab${active ? ' active' : ''}`}>
-                <button role="tab" aria-selected={active} className="sf-rtab-label" onClick={() => openCase(id)}>
-                  <Briefcase size={14} />
-                  {id} | Case
-                  <ChevronDown size={13} className="sf-rtab-chev" />
-                </button>
-                <button className="sf-rtab-close" aria-label={`Close case ${id}`} onClick={(e) => closeCase(id, e)}>
-                  <X size={13} />
-                </button>
-              </div>
-            )
-          })}
-        </div>
       </div>
 
-      {/* Row 4: subtabs of the active case (case record + its fraud records) */}
-      {object === 'Cases' && activeCaseId && (
-        <div className="sf-subtabs" role="tablist" aria-label="Case subtabs">
-          <button
-            role="tab"
-            aria-selected={!activeSub}
-            className={`sf-subtab${!activeSub ? ' active' : ''}`}
-            onClick={() => setActiveSub(null)}
-          >
-            <Briefcase size={14} />
-            {activeCaseId} | Case
-          </button>
-
-          {subtabs.map((fraudId) => (
-            <div key={fraudId} className={`sf-subtab fraud${activeSub === fraudId ? ' active' : ''}`}>
-              <button role="tab" aria-selected={activeSub === fraudId} className="sf-subtab-label" onClick={() => setActiveSub(fraudId)}>
-                <ShieldAlert size={14} />
-                {fraudId}
-                <ChevronDown size={13} />
-              </button>
-              <button className="sf-rtab-close" aria-label={`Close ${fraudId}`} onClick={(e) => closeFraud(fraudId, e)}>
-                <X size={13} />
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-
       <main className="sf-main-area">
-        {object === 'Home' && <HomePage onOpenCase={openCase} onNavigate={chooseObject} />}
+        {object === 'Home' && <HomePage onNavigate={chooseObject} />}
 
-        {object === 'Customers' && <Customers target={customerTarget} />}
+        {object === 'Customers' && <Customers openCustomerId={customerId} />}
 
-        {object === 'Cases' && !activeCase && (
-          <CaseList onOpen={openCase} onOpenCustomer={openCustomerFromCase} />
-        )}
-
-        {object === 'Cases' && activeCase && !activeFraud && (
+        {object === 'Cases' && !caseId && <CaseList onOpen={openCase} />}
+        {object === 'Cases' && caseId && (
           <CaseRecord
-            key={activeCase.id}
-            caseItem={activeCase}
+            key={caseId}
+            caseId={caseId}
+            onBack={() => setCaseId(null)}
             onOpenFraud={openFraud}
-            onOpenCustomer={openCustomerFromCase}
+            onOpenCustomer={openCustomer}
           />
         )}
 
-        {object === 'Cases' && activeCase && activeFraud && (
-          <FraudRecord key={activeFraud.id} fraud={activeFraud} onOpenCase={openCase} />
+        {object === 'Fraud' && !fraudId && <FraudList onOpen={openFraud} onOpenCase={openCase} />}
+        {object === 'Fraud' && fraudId && (
+          <FraudRecordView key={fraudId} fraudId={fraudId} onBack={() => setFraudId(null)} onOpenCase={openCase} />
         )}
       </main>
 
-      {/* Bottom utility bar */}
       <footer className="sf-footer">
         <span><Bell size={14} /> Notifications</span>
         <span><StickyNote size={14} /> Notes</span>

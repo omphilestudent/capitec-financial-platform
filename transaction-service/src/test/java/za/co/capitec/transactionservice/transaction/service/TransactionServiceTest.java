@@ -2,7 +2,8 @@ package za.co.capitec.transactionservice.transaction.service;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
+import za.co.capitec.transactionservice.common.messaging.OutboxWriter;
+import za.co.capitec.transactionservice.messaging.event.TransactionCreatedEvent;
 import za.co.capitec.transactionservice.transaction.dto.CreateTransactionRequest;
 import za.co.capitec.transactionservice.transaction.dto.TransactionResponse;
 import za.co.capitec.transactionservice.transaction.entity.Transaction;
@@ -22,6 +23,7 @@ class TransactionServiceTest {
 
     private TransactionRepository transactionRepository;
     private AccountServiceClient accountServiceClient;
+    private OutboxWriter outboxWriter;
     private TransactionService transactionService;
 
     private final UUID accountId =
@@ -31,15 +33,17 @@ class TransactionServiceTest {
     void setUp() {
         transactionRepository = mock(TransactionRepository.class);
         accountServiceClient = mock(AccountServiceClient.class);
+        outboxWriter = mock(OutboxWriter.class);
 
         transactionService = new TransactionService(
                 transactionRepository,
-                accountServiceClient
+                accountServiceClient,
+                outboxWriter
         );
     }
 
     @Test
-    void shouldCreateTransactionSuccessfully() {
+    void shouldCreateTransactionSuccessfullyAndPublishEvent() {
         CreateTransactionRequest request = new CreateTransactionRequest(
                 accountId,
                 TransactionType.CREDIT,
@@ -50,8 +54,14 @@ class TransactionServiceTest {
 
         when(accountServiceClient.accountExists(accountId)).thenReturn(true);
 
+        // JPA assigns the ID on persist; the stub does the same.
         when(transactionRepository.save(any(Transaction.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
+                .thenAnswer(invocation -> {
+                    Transaction saved = invocation.getArgument(0);
+                    org.springframework.test.util.ReflectionTestUtils.setField(
+                            saved, "id", UUID.randomUUID());
+                    return saved;
+                });
 
         TransactionResponse response =
                 transactionService.createTransaction(request);
@@ -66,6 +76,28 @@ class TransactionServiceTest {
         assertTrue(response.transactionReference().startsWith("TXN-"));
 
         verify(transactionRepository).save(any(Transaction.class));
+
+        org.mockito.ArgumentCaptor<Object> eventCaptor =
+                org.mockito.ArgumentCaptor.forClass(Object.class);
+
+        verify(outboxWriter).write(
+                any(UUID.class),
+                eq(TransactionCreatedEvent.TOPIC),
+                any(String.class),
+                eq(TransactionCreatedEvent.EVENT_TYPE),
+                eventCaptor.capture()
+        );
+
+        TransactionCreatedEvent event = (TransactionCreatedEvent) eventCaptor.getValue();
+
+        assertNotNull(event.eventId());
+        assertEquals(response.id(), event.transactionId());
+        assertEquals(accountId, event.accountId());
+        assertEquals(response.transactionReference(), event.transactionReference());
+        assertEquals("CREDIT", event.type());
+        assertEquals(new BigDecimal("1250.50"), event.amount());
+        assertEquals("ZAR", event.currency());
+        assertEquals("PENDING", event.status());
     }
 
     @Test
@@ -86,6 +118,7 @@ class TransactionServiceTest {
         );
 
         verify(transactionRepository, never()).save(any(Transaction.class));
+        verify(outboxWriter, never()).write(any(), any(), any(), any(), any());
     }
 
     @Test

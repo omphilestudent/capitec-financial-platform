@@ -1,0 +1,1 @@
+DELETE FROM fraud_evaluation_publications;

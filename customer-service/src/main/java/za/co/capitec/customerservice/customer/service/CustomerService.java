@@ -6,6 +6,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import za.co.capitec.customerservice.customer.entity.Customer;
 import za.co.capitec.customerservice.customer.entity.ClientType;
+import za.co.capitec.customerservice.common.messaging.OutboxWriter;
+import za.co.capitec.customerservice.customer.event.CustomerCreatedEvent;
+import java.time.Instant;
 import za.co.capitec.customerservice.customer.repository.CustomerRepository;
 
 import za.co.capitec.customerservice.customer.exception.CustomerNotFoundException;
@@ -20,9 +23,13 @@ import java.util.UUID;
 public class CustomerService {
 
     private final CustomerRepository customerRepository;
+    private final OutboxWriter outboxWriter;
 
-    public CustomerService(CustomerRepository customerRepository) {
+    public CustomerService(
+            CustomerRepository customerRepository,
+            OutboxWriter outboxWriter) {
         this.customerRepository = customerRepository;
+        this.outboxWriter = outboxWriter;
     }
 
     public Customer createCustomer(
@@ -49,7 +56,27 @@ public class CustomerService {
                 clientType
         );
 
-        return customerRepository.save(customer);
+        Customer saved = customerRepository.save(customer);
+
+        // Written to the outbox in the same transaction as the customer.
+        UUID eventId = UUID.randomUUID();
+        outboxWriter.write(
+                eventId,
+                CustomerCreatedEvent.TOPIC,
+                saved.getId().toString(),
+                CustomerCreatedEvent.EVENT_TYPE,
+                new CustomerCreatedEvent(
+                        eventId,
+                        saved.getId(),
+                        saved.getFirstName(),
+                        saved.getLastName(),
+                        saved.getEmail(),
+                        saved.getClientType(),
+                        Instant.now()
+                )
+        );
+
+        return saved;
     }
 
     @Transactional(readOnly = true)
