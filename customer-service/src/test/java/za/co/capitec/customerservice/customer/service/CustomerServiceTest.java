@@ -10,6 +10,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import za.co.capitec.customerservice.customer.entity.ClientType;
 import za.co.capitec.customerservice.customer.entity.Customer;
 import za.co.capitec.customerservice.customer.exception.DuplicateCustomerException;
+import za.co.capitec.customerservice.common.messaging.OutboxWriter;
 import za.co.capitec.customerservice.customer.exception.CustomerNotFoundException;
 import za.co.capitec.customerservice.customer.repository.CustomerRepository;
 
@@ -25,11 +26,14 @@ class CustomerServiceTest {
     @Mock
     private CustomerRepository customerRepository;
 
+    @Mock
+    private OutboxWriter outboxWriter;
+
     private CustomerService customerService;
 
     @BeforeEach
     void setUp() {
-        customerService = new CustomerService(customerRepository);
+        customerService = new CustomerService(customerRepository, outboxWriter);
     }
 
     @Test
@@ -37,8 +41,14 @@ class CustomerServiceTest {
         when(customerRepository.existsByEmail("thabo@example.com"))
                 .thenReturn(false);
 
+        // JPA assigns the ID on persist; the stub does the same.
         when(customerRepository.save(any(Customer.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
+                .thenAnswer(invocation -> {
+                    Customer saved = invocation.getArgument(0);
+                    org.springframework.test.util.ReflectionTestUtils.setField(
+                            saved, "id", UUID.randomUUID());
+                    return saved;
+                });
 
         Customer customer = customerService.createCustomer(
                 "Thabo",

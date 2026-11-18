@@ -8,6 +8,8 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import za.co.capitec.transactionservice.transaction.service.AccountNotFoundException;
+import za.co.capitec.transactionservice.transaction.service.AccountServiceUnavailableException;
+import za.co.capitec.transactionservice.transaction.service.InvalidTransactionFilterException;
 import za.co.capitec.transactionservice.transaction.service.TransactionNotFoundException;
 
 import java.time.Instant;
@@ -21,6 +23,19 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, Object>> handleAccountNotFound(
             AccountNotFoundException exception) {
         return buildResponse(HttpStatus.NOT_FOUND, exception.getMessage());
+    }
+
+    @ExceptionHandler(AccountServiceUnavailableException.class)
+    public ResponseEntity<Map<String, Object>> handleAccountServiceUnavailable(
+            AccountServiceUnavailableException exception) {
+        return buildResponse(HttpStatus.SERVICE_UNAVAILABLE,
+                "Account service is unavailable. The transaction was not created.");
+    }
+
+    @ExceptionHandler(InvalidTransactionFilterException.class)
+    public ResponseEntity<Map<String, Object>> handleInvalidFilter(
+            InvalidTransactionFilterException exception) {
+        return buildResponse(HttpStatus.BAD_REQUEST, exception.getMessage());
     }
 
     @ExceptionHandler(TransactionNotFoundException.class)

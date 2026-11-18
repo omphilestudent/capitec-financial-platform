@@ -266,3 +266,44 @@
     width: 100%;
   }
 }
+
+.sf-icon.fraud {
+  background: #2e844a;
+}
+
+.sf-list-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.sf-list-tools select {
+  height: 32px;
+  padding: 0 8px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+}
+
+.sf-search-form {
+  margin: 0;
+}
+
+.sf-long-block {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.sf-long-block p {
+  margin: 4px 0 0;
+  font-size: 14px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.sf-highlights.stacked {
+  flex-direction: column;
+  gap: 10px;
+}

@@ -1,254 +1,247 @@
 # Capitec Financial Intelligence Platform
 
-A full-stack financial services platform built to demonstrate modern banking technology, microservices architecture, secure transaction processing, event-driven communication, and fraud detection.
+A microservices banking platform: customers, accounts and transactions are owned by separate Spring Boot services, each with its own PostgreSQL database. Services talk to each other over REST for synchronous checks and over Apache Kafka for events. A React frontend reads and writes everything through an API gateway.
 
-The platform aims to simulate core banking capabilities through independently developed services that communicate using REST APIs and Apache Kafka.
-
-## Project Overview
-
-The Capitec Financial Intelligence Platform focuses on three key capabilities:
-
-1. **Transaction Aggregation API**  
-   Provides a centralised interface for retrieving, aggregating, and managing financial transaction data.
-
-2. **Fraud Detection Engine**  
-   Evaluates financial transactions against configurable fraud detection rules, identifies suspicious activity, and generates fraud alerts.
-
-3. **Secure Statement Delivery**  
-   Supports the generation and secure delivery of customer financial statements.
-
-The project is being developed incrementally, starting with the core service architecture and expanding into transaction processing, event streaming, fraud detection, and frontend integration.
-
-## Technology Stack
-
-### Backend
-- Java 21
-- Spring Boot
-- Spring Security
-- Spring Data JPA
-- PostgreSQL
-- Apache Kafka
-- Maven
-- REST APIs
-
-### Frontend
-- React
-- JavaScript
-- Vite
-- CSS
-
-### DevOps and Infrastructure
-- Docker
-- Docker Compose
-- Git
-- GitHub
-- Maven Wrapper
+Everything described below is implemented and was verified against the running platform. Capabilities without a service in this repository (cases, fraud detection, notifications, statements) are shown as not implemented in the UI; no sample data is displayed for them.
 
 ## Architecture
 
-The platform follows a **microservices architecture** with event-driven communication.
-
-Each microservice is responsible for a specific business capability and is designed to operate independently. Services use REST APIs for synchronous communication and Apache Kafka for asynchronous event processing.
-
-### Planned Microservices
-
-| Service | Responsibility |
-|---|---|
-| API Gateway | Central entry point for client requests and service routing |
-| Customer Service | Customer registration and customer information management |
-| Account Service | Bank account management and account information |
-| Transaction Service | Transaction creation, retrieval, and aggregation |
-| Payment Service | Payment initiation and processing |
-| Fraud Detection Service | Transaction monitoring and fraud rule evaluation |
-| Notification Service | Customer notifications and event-driven alerts |
-
-### Communication
-
-- **Synchronous:** REST APIs for direct service-to-service communication.
-- **Asynchronous:** Apache Kafka for publishing and consuming business events.
-- **Persistence:** PostgreSQL databases, with service-level data ownership.
-
-### Architecture Overview
-
 ```text
-                    React Frontend
-                          |
-                          v
-                     API Gateway
-                          |
-        +-----------------+-----------------+
-        |                 |                 |
-        v                 v                 v
- Customer Service   Account Service   Transaction Service
-        |                 |                 |
-        v                 v                 v
-  Customer DB         Account DB       Transaction DB
-                          |
-                          v
-                    Apache Kafka
-                          |
-          +---------------+---------------+
-          |               |               |
-          v               v               v
-    Payment Service  Fraud Service  Notification Service
-          |               |               |
-          v               v               v
-      Payment DB       Fraud DB      Notification DB
+                 React frontend (Vite dev server, :5173)
+                              |  /api/v1/*
+                              v
+                    API Gateway  (:8000, Spring Cloud Gateway)
+                 routes by path, reports service health
+            +---------------+----------------+----------------+
+            |               |                |
+            v               v                v
+   Customer Service   Account Service   Transaction Service
+     (:8081)            (:8082)           (:8083)
+        |                  |                 |
+        |  REST: account-service checks    REST: transaction-service
+        |  customer existence (fallback)   checks account existence
+        |                  ^                 |
+        v                  |                 v
+   customer_service_db  account_service_db  transaction_service_db
+   (PostgreSQL, :5433, one database per service)
+
+   Kafka (localhost:9092, KRaft)
+   customer-service --CustomerCreated-->  customer.events  --> account-service
+   account-service  --AccountOpened---->  account.events
+   transaction-service --TransactionCreated--> transaction-events
+   failed customer.events messages --> customer.events-dlt
 ```
 
-*Architecture is a target design and will evolve as services are implemented.*
+Each publishing service writes its event to a **transactional outbox** table in its own database, in the same transaction as the business change. A relay publishes pending outbox rows to Kafka and retries failures. An event is therefore never published for a rolled-back change, and a committed change is not lost if Kafka is briefly unavailable.
 
-## Event-Driven Processing
+## Services
 
-Apache Kafka will provide asynchronous communication between services.
+| Service | Port | Database | Responsibility | Publishes | Consumes |
+|---|---|---|---|---|---|
+| api-gateway | 8000 | none | Single entry point for the frontend; routes `/api/v1/customers`, `/accounts`, `/transactions`; reports downstream health at `/api/v1/services/health` | – | – |
+| customer-service | 8081 | `customer_service_db` | Customer registration and lookup | `customer.events` | – |
+| account-service | 8082 | `account_service_db` | Accounts per customer; keeps a local copy of known customers | `account.events` | `customer.events` |
+| transaction-service | 8083 | `transaction_service_db` | Records credit and debit transactions against an account | `transaction-events` | – |
+| frontend | 5173 | none | React console: Home, Customers, Transactions | – | – |
 
-Example transaction processing flow:
+Database configuration is set per service in `application.properties` and can be overridden with `DB_URL`, `DB_USERNAME` and `DB_PASSWORD`. The default URL uses `localhost:5433`, user `app_user`. `transaction-service` has no default password and must be given `DB_PASSWORD`.
 
-1. A transaction is submitted through the API.
-2. The Transaction Service validates and persists the transaction.
-3. A transaction event is published to Kafka.
-4. The Fraud Detection Service consumes the event.
-5. Fraud rules are evaluated against the transaction.
-6. A fraud alert event is published when suspicious activity is detected.
-7. The Notification Service consumes the alert and initiates customer notification.
+Schema changes are managed by Flyway; `spring.jpa.hibernate.ddl-auto=validate` makes Hibernate check the entities against the migrated schema at startup.
 
-This approach supports loose coupling between services and provides a foundation for scalable event processing.
+## Kafka
 
-## Security
+| Topic | Key | Producer | Consumer group |
+|---|---|---|---|
+| `customer.events` | customer ID | customer-service | `account-service` |
+| `account.events` | account ID | account-service | – |
+| `transaction-events` | transaction ID | transaction-service | – |
+| `customer.events-dlt` | – | account-service (dead letters) | – |
 
-Security is a core consideration throughout the development of the platform.
+Producers send JSON text from their outbox. Consumers apply the following rules:
 
-Planned security capabilities include:
+- A failed record is retried three times, one second apart, then published to `customer.events-dlt`.
+- A malformed payload is reported as an error and dead-lettered; it does not stop the listener.
+- Customer references are stored by customer ID, so a redelivered event updates the same row and never creates a duplicate.
 
-- Spring Security integration.
-- Authentication and authorisation.
-- Role-based access control.
-- Input validation.
-- Secure REST API endpoints.
-- Secure handling of customer and financial information.
-- Protected statement delivery.
+### Event schemas
 
-## Database Strategy
+Every event carries a unique `eventId` (UUID) and a timestamp.
 
-PostgreSQL is used for relational data persistence.
+**CustomerCreated** (`customer.events`)
 
-The microservices architecture follows database-per-service ownership, meaning each service manages its own data and does not directly access another service's database.
-
-Cross-service data requirements will be handled through APIs and asynchronous events.
-
-## Project Structure
-
-The repository is organised around independently developed services and supporting infrastructure.
-
-```text
-capitec-fin-platform/
-│
-├── backend/
-│   └── Existing backend application
-│
-├── customer-service/
-│   └── Customer microservice
-│
-├── frontend/
-│   └── React application
-│
-├── infrastructure/
-│   └── Infrastructure configuration
-│
-├── docs/
-│   └── Architecture and technical documentation
-│
-├── docker-compose.yml
-├── .github/
-└── README.md
+```json
+{
+  "eventId": "UUID",
+  "customerId": "UUID",
+  "firstName": "string",
+  "lastName": "string",
+  "email": "string",
+  "clientType": "INDIVIDUAL | BUSINESS",
+  "occurredAt": "2026-11-18T17:52:10.123456Z"
+}
 ```
 
-Additional microservices will be introduced as development progresses.
+**AccountOpened** (`account.events`)
 
-## Getting Started
+```json
+{
+  "eventId": "UUID",
+  "accountId": "UUID",
+  "customerId": "UUID",
+  "accountNumber": "string",
+  "accountType": "SAVINGS | CHEQUE | CREDIT",
+  "occurredAt": "ISO-8601 instant"
+}
+```
 
-### Prerequisites
+**TransactionCreated** (`transaction-events`)
 
-Ensure the following tools are installed:
+```json
+{
+  "eventId": "UUID",
+  "transactionId": "UUID",
+  "accountId": "UUID",
+  "transactionReference": "TXN-…",
+  "type": "CREDIT | DEBIT",
+  "amount": 1250.50,
+  "currency": "ZAR",
+  "status": "PENDING",
+  "createdAt": "2026-11-18T17:57:45.838074"
+}
+```
 
-- Java 21
-- Maven
-- Node.js and npm
-- Docker Desktop
-- Git
-
-### Clone the Repository
+Inspect messages with the Kafka CLI:
 
 ```bash
-git clone <repository-url>
-cd capitec-fin-platform
+docker exec capitec-kafka /opt/kafka/bin/kafka-console-consumer.sh \
+  --bootstrap-server localhost:9092 --topic transaction-events \
+  --from-beginning --property print.key=true
 ```
 
-### Start PostgreSQL
+## API
+
+All endpoints are served through the gateway at `http://localhost:8000`. Errors use one JSON shape with `status`, `error` and `message`; validation errors add `fieldErrors`.
+
+| Method | Path | Purpose | Success | Errors |
+|---|---|---|---|---|
+| POST | `/api/v1/customers` | Create a customer | 201 | 400 invalid, 409 duplicate email |
+| GET | `/api/v1/customers` | List customers | 200 | – |
+| GET | `/api/v1/customers/{id}` | Get a customer | 200 | 404 |
+| POST | `/api/v1/accounts` | Open an account `{customerId, accountType}` | 201 | 400, 404 unknown customer |
+| GET | `/api/v1/accounts/{id}` | Get an account | 200 | 404 |
+| GET | `/api/v1/accounts/customer/{customerId}` | List a customer's accounts | 200 | 404 unknown customer |
+| POST | `/api/v1/transactions` | Record a transaction `{accountId, type, amount, currency, description?}` | 201 | 400, 404 unknown account, 503 account-service unavailable |
+| GET | `/api/v1/transactions` | Most recent 100 transactions | 200 | – |
+| GET | `/api/v1/transactions/{id}` | Get a transaction | 200 | 400 malformed ID, 404 |
+| GET | `/api/v1/transactions/account/{accountId}` | An account's transactions | 200 | 404 unknown account |
+| GET | `/api/v1/services/health` | Live health of the three services | 200 | – |
+
+A transaction is created only after account-service confirms the account exists. If account-service cannot be reached, the request fails with 503 and nothing is written.
+
+## Frontend
+
+React and Vite. The browser calls `/api/v1/...`; the Vite dev server forwards those requests to the gateway (`frontend/vite.config.js`), so no URLs are hard-coded in components. All data comes from `frontend/src/services/*.js`, which wrap the shared axios client in `services/api.js`.
+
+- **Home:** customer count, recent transaction count, services running, live service health, recent transactions, and a list of capabilities that are not implemented.
+- **Customers:** list, create, detail, and each customer's accounts (open an account, view an account).
+- **Transactions:** recent transactions, detail, search, and record a new transaction (choose customer, then account).
+- **Cases:** states that no service provides cases.
+
+Loading, empty and error states are shown per panel. A failed request shows its error; it does not fall back to other data.
+
+## Running the platform
+
+Prerequisites: Java 21, Node.js 20+, Docker Desktop.
+
+**1. Infrastructure**
 
 ```bash
-docker compose up -d postgres
+docker compose up -d postgres                              # PostgreSQL on :5433
+docker compose -f infrastructure/kafka/docker-compose.yml up -d   # Kafka on :9092
 ```
 
-### Run the Customer Service
+Create the three service databases once (existing databases are left untouched):
 
 ```bash
-cd customer-service
-./mvnw spring-boot:run
+for db in customer_service_db account_service_db transaction_service_db; do
+  docker exec -e PGPASSWORD="$DB_PASSWORD" capitec-postgres \
+    psql -U app_user -d financial_platform -tc "select 1 from pg_database where datname='$db'" | grep -q 1 \
+    || docker exec -e PGPASSWORD="$DB_PASSWORD" capitec-postgres \
+       psql -U app_user -d financial_platform -c "create database $db"
+done
 ```
 
-The Customer Service is configured to run on:
+**2. Services** (one terminal each; Flyway creates the tables on first start)
+
+```bash
+cd customer-service    && ./mvnw spring-boot:run
+cd account-service     && CUSTOMER_SERVICE_URL=http://localhost:8081 ./mvnw spring-boot:run
+cd transaction-service && DB_PASSWORD="$DB_PASSWORD" ACCOUNT_SERVICE_URL=http://localhost:8082 ./mvnw spring-boot:run
+cd api-gateway         && ./mvnw spring-boot:run
+```
+
+Health checks: `http://localhost:8081/actuator/health`, `:8082`, `:8083`, and `http://localhost:8000/api/v1/services/health`.
+
+**3. Frontend**
+
+```bash
+cd frontend
+npm install
+npm run dev          # http://localhost:5173
+npm run build        # production build to frontend/dist
+```
+
+If Maven cannot download dependencies because a corporate proxy presents its own certificate, point Maven's JVM at your trust store for that run:
+
+```bash
+MAVEN_OPTS="-Djavax.net.ssl.trustStore=$HOME/.m2/cacerts-zscaler -Djavax.net.ssl.trustStorePassword=${TRUSTSTORE_PASSWORD}" ./mvnw spring-boot:run
+```
+
+## Testing
+
+Unit tests (no running infrastructure needed):
+
+```bash
+for s in customer-service account-service transaction-service api-gateway; do
+  (cd $s && ./mvnw test)
+done
+```
+
+End-to-end verification against the running platform, PostgreSQL and Kafka. It creates real records through the gateway and checks the database rows, the published events (read with the Kafka CLI) and the failure responses:
+
+```bash
+node scripts/e2e/verify-platform.mjs
+```
+
+The script covers: customer, account and transaction creation; outbox rows marked `PUBLISHED`; the exact event contents on each topic; a duplicate customer event that must not create a second reference; 404, 400 and 409 responses that must create no rows; and a malformed message that must reach `customer.events-dlt`. It exits non-zero if any check fails.
+
+Outage behaviour (stopping account-service and confirming transactions return 503 without writing a row) was checked manually; it is not in the script because it stops a running service.
+
+## Known limitations
+
+- **Cases, fraud detection, notifications and statements** have no service in this repository and are not implemented.
+- **Accounts cannot be edited or closed.** account-service exposes only create and read endpoints. The Edit and Remove buttons on the account page are disabled for this reason.
+- **Transactions stay `PENDING`.** Nothing processes them yet, and balances are not updated.
+- **Event delivery is at-least-once.** Consumers handle duplicates by key, not by a processed-events table. The outbox relay runs in each service; running two instances of one service would publish each event twice until the relay is made multi-instance safe.
+- **Failed producer events are kept, not retried forever.** After 10 failed attempts an outbox row is marked `FAILED` and stays in the table for investigation; there is no automatic dead-letter topic for producers.
+- **No authentication or authorisation.** The gateway and services accept any request.
+- **Services run from Maven, not containers.** Only PostgreSQL and Kafka run in Docker. The services need the explicit local URLs shown above; the default `localhost` database URL did not connect reliably from the Spring processes during development, while `127.0.0.1` did.
+- **The monolith in `backend/`** is no longer used by the frontend. Its customer and account data are separate from the services.
+- **The UI was not checked in a browser** during this work. The API paths behind every screen were exercised, and the production build succeeds.
+
+## Project structure
 
 ```text
-http://localhost:8081
+api-gateway/           Spring Cloud Gateway: routes and service health
+customer-service/      Customer microservice (Spring Boot, JPA, Flyway, Kafka producer)
+account-service/       Account microservice (Spring Boot, JPA, Flyway, Kafka producer and consumer)
+transaction-service/   Transaction microservice (Spring Boot, JPA, Flyway, Kafka producer)
+backend/               Earlier monolith, not used by the frontend
+frontend/              React + Vite console
+infrastructure/kafka/  Kafka KRaft docker-compose
+scripts/e2e/           End-to-end verification script
+docker-compose.yml     PostgreSQL
 ```
-
-Health endpoint:
-
-```text
-http://localhost:8081/actuator/health
-```
-
-*The database and service configuration must be in place before starting the application.*
-
-## Development Roadmap
-
-- [x] Establish initial Spring Boot backend.
-- [x] Configure PostgreSQL connectivity.
-- [x] Create the Customer Service project structure.
-- [x] Configure independent Customer Service database.
-- [ ] Complete Customer Service REST APIs.
-- [ ] Implement Account Service.
-- [ ] Implement Transaction Service.
-- [ ] Introduce Apache Kafka event streaming.
-- [ ] Implement Payment Service.
-- [ ] Develop Fraud Detection Engine.
-- [ ] Implement Notification Service.
-- [ ] Introduce API Gateway.
-- [ ] Integrate React frontend.
-- [ ] Implement authentication and authorisation.
-- [ ] Containerise all services using Docker Compose.
-- [ ] Add automated testing and CI/CD pipelines.
-
-## Engineering Objectives
-
-This project is intended to demonstrate practical engineering skills in:
-
-- Distributed systems and microservices.
-- Java and Spring Boot application development.
-- REST API design and integration.
-- Event-driven architecture with Apache Kafka.
-- Relational database design and data ownership.
-- Authentication and application security.
-- Docker-based development environments.
-- Frontend and backend integration.
-- Automated testing and continuous integration.
-
-## Project Status
-
-**Currently under active development.**
-
-The platform is being built incrementally, with the initial focus on establishing independent microservices, database separation, and the foundations for Kafka-based event-driven communication.
 
 ## Author
 
@@ -256,4 +249,4 @@ The platform is being built incrementally, with the initial focus on establishin
 
 Full Stack Software Engineering Project
 
-Technologies: Java | Spring Boot | React | PostgreSQL | Apache Kafka | Docker
+Technologies: Java 21 | Spring Boot 4 | Spring Cloud Gateway | React | PostgreSQL | Apache Kafka | Docker
