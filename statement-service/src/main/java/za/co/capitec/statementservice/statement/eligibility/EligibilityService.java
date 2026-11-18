@@ -71,7 +71,18 @@ public class EligibilityService {
                 .filter(e -> e.status() == Status.ELIGIBLE)
                 .map(e -> new TransactionView(e.row().aggregatedTransactionId(), e.row().accountId(),
                         e.row().externalId(), e.row().direction(), e.row().amount(), e.row().currency(),
-                        e.row().description(), e.row().status(), e.row().occurredAt()))
+                        describe(e.row().description(), e.row().category()), e.row().status(), e.row().occurredAt()))
                 .toList();
+    }
+
+    static String describe(String description, String category) {
+        if (description != null && !description.isBlank()) {
+            return description;
+        }
+        if (category == null || category.isBlank()) {
+            return "Transaction";
+        }
+        String words = category.replace('_', ' ').toLowerCase(java.util.Locale.ROOT);
+        return Character.toUpperCase(words.charAt(0)) + words.substring(1);
     }
 }

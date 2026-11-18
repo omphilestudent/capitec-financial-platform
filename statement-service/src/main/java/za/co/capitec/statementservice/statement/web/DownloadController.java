@@ -27,7 +27,7 @@ public class DownloadController {
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_PDF)
                 .header(HttpHeaders.CONTENT_DISPOSITION,
-                        ContentDisposition.attachment().filename(download.filename()).build().toString())
+                        ContentDisposition.inline().filename(download.filename()).build().toString())
                 .header(HttpHeaders.CACHE_CONTROL, "no-store, private")
                 .header("X-Content-Type-Options", "nosniff")
                 .body(download.content());

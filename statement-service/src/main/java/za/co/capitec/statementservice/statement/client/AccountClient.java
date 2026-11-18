@@ -24,7 +24,7 @@ public class AccountClient {
     public AccountView getAccount(UUID accountId) {
         try {
             AccountView account = restClient.get()
-                    .uri("/api/v1/accounts/{id}", accountId)
+                    .uri("/api/v1/accounts/{id}/reference", accountId)
                     .retrieve()
                     .body(AccountView.class);
             if (account == null) {

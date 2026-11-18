@@ -108,7 +108,7 @@ function App() {
       <div className="sf-appbar">
         <div className="sf-appbar-left">
           <button className="sf-icon-btn" aria-label="App launcher"><LayoutGrid size={20} /></button>
-          <span className="sf-app-name">Financial Platform</span>
+          <span className="sf-app-name">{object}</span>
         </div>
 
         <div className="sf-object-switch" onKeyDown={(e) => e.key === 'Escape' && setMenuOpen(false)}>

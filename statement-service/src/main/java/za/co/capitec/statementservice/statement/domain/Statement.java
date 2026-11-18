@@ -67,6 +67,21 @@ public class Statement {
     @Column(name = "excluded_transaction_count", nullable = false)
     private int excludedTransactionCount;
 
+    @Column(name = "version_number", nullable = false)
+    private int versionNumber = 1;
+
+    @Column(name = "version_status", nullable = false, length = 20)
+    private String versionStatus = "CURRENT";
+
+    @Column(name = "superseded_by")
+    private UUID supersededBy;
+
+    @Column(name = "regeneration_reason", length = 500)
+    private String regenerationReason;
+
+    @Column(name = "eligibility_fingerprint", length = 64)
+    private String eligibilityFingerprint;
+
     @Column(name = "generated_at")
     private LocalDateTime generatedAt;
 
@@ -112,6 +127,33 @@ public class Statement {
         this.failureReason = null;
         this.generatedAt = when;
     }
+
+    public void markSuperseded(UUID newVersionId) {
+        this.versionStatus = "SUPERSEDED";
+        this.supersededBy = newVersionId;
+    }
+
+    public void promoteToCurrent() {
+        this.versionStatus = "CURRENT";
+    }
+
+    public void markFailedVersion(String reason) {
+        this.versionStatus = "FAILED";
+        markFailed(reason);
+    }
+
+    public void configureVersion(int versionNumber, String reason, String fingerprint) {
+        this.versionNumber = versionNumber;
+        this.versionStatus = "PENDING";
+        this.regenerationReason = reason == null ? null : reason.substring(0, Math.min(reason.length(), 500));
+        this.eligibilityFingerprint = fingerprint;
+    }
+
+    public int getVersionNumber() { return versionNumber; }
+    public String getVersionStatus() { return versionStatus; }
+    public UUID getSupersededBy() { return supersededBy; }
+    public String getRegenerationReason() { return regenerationReason; }
+    public String getEligibilityFingerprint() { return eligibilityFingerprint; }
 
     public void markWithdrawn(String reason) {
         this.status = StatementStatus.WITHDRAWN;

@@ -116,7 +116,7 @@ public class FraudDetectionService {
         LocalDateTime windowStart = ruleEngine.velocityWindowStart(event.createdAt());
         long priorInWindow = processedRepository
                 .countByAccountIdAndTransactionCreatedAtBetween(event.accountId(), windowStart, event.createdAt());
-        Assessment assessment = ruleEngine.evaluate(event.amount(), priorInWindow + 1);
+        Assessment assessment = ruleEngine.evaluate(event.amount(), priorInWindow + 1, event.currency(), event.description());
 
         if (!assessment.detected()) {
             processedRepository.save(processed(event, "NOT_DETECTED"));
@@ -273,6 +273,8 @@ public class FraudDetectionService {
         return switch (ruleId) {
             case FraudRuleEngine.HIGH_AMOUNT -> "HIGH_VALUE_TRANSACTION";
             case FraudRuleEngine.VELOCITY -> "UNUSUAL_ACTIVITY_PATTERN";
+            case FraudRuleEngine.CROSS_BORDER -> "CROSS_BORDER_TRANSACTION";
+            case FraudRuleEngine.LARGE_EFT -> "LARGE_EFT_PAYMENT";
             default -> "OTHER";
         };
     }

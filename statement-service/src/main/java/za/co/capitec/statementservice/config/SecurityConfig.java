@@ -35,7 +35,7 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/actuator/health", "/actuator/health/**", "/actuator/info").permitAll()
+                        .requestMatchers("/actuator/health", "/actuator/health/**", "/actuator/info", "/error").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/statements/download/**").authenticated()
                         .requestMatchers("/api/v1/statements/**").authenticated()
                         .anyRequest().denyAll())

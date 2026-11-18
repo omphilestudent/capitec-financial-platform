@@ -12,7 +12,9 @@ class FraudRuleEngineTest {
     private final FraudRuleEngine engine = new FraudRuleEngine(new FraudRulesProperties(
             new FraudRulesProperties.HighAmount(true, new BigDecimal("50000"), 70),
             new FraudRulesProperties.Velocity(true, 5, 10, 50),
-            new FraudRulesProperties.Levels(30, 60, 80)
+            new FraudRulesProperties.Levels(30, 60, 80),
+            new FraudRulesProperties.CrossBorder(false, 60),
+            new FraudRulesProperties.LargeEft(false, new BigDecimal("20000"), 65)
     ));
 
     @Test

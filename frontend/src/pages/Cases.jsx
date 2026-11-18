@@ -111,7 +111,12 @@ function FieldGrid({ fields }) {
 
 function Panel({ state, onRetry, children }) {
   if (state.status === 'loading') {
-    return <p className="sf-muted centered"><Loader2 size={15} className="cu-spin" /> Loading…</p>
+    return <div className="sf-skeleton-stack" role="status" aria-label="Loading">
+        <span className="sf-skeleton sf-skeleton-row" style={{ width: '100%' }} />
+        <span className="sf-skeleton sf-skeleton-row" style={{ width: '92%' }} />
+        <span className="sf-skeleton sf-skeleton-row" style={{ width: '96%' }} />
+        <span className="sf-skeleton sf-skeleton-row" style={{ width: '70%' }} />
+      </div>;
   }
   if (state.status === 'error') {
     return (
@@ -246,6 +251,22 @@ export function CaseRecord({ caseId, onBack, onOpenFraud, onOpenCustomer }) {
     fraud.reload()
   }
 
+  const [pathSaving, setPathSaving] = useState(false)
+  const [pathError, setPathError] = useState('')
+
+  const changeStatus = async (next) => {
+    setPathSaving(true)
+    setPathError('')
+    try {
+      await updateCase(caseData.id, { status: next })
+      reloadAll()
+    } catch (err) {
+      setPathError(errorMessage(err))
+    } finally {
+      setPathSaving(false)
+    }
+  }
+
   if (caseRequest.status !== 'ready') {
     return (
       <section className="sf-record">
@@ -286,17 +307,31 @@ export function CaseRecord({ caseId, onBack, onOpenFraud, onOpenCustomer }) {
           <ol className="sf-path" aria-label="Case status">
             {CASE_STATUS_PATH.map((step) => {
               const current = step === caseData.status
+              const reachable = (ALLOWED_NEXT[caseData.status] || []).includes(step)
               return (
                 <li
                   key={step}
                   className={current ? (closed ? 'current closed' : 'current') : ''}
                   aria-current={current ? 'step' : undefined}
                 >
-                  {STATUS_LABEL[step]}
+                  {reachable ? (
+                    <button
+                      type="button"
+                      className="sf-path-step-button"
+                      disabled={pathSaving}
+                      onClick={() => changeStatus(step)}
+                      title={`Move this case to ${STATUS_LABEL[step]}`}
+                    >
+                      {STATUS_LABEL[step]}
+                    </button>
+                  ) : (
+                    STATUS_LABEL[step]
+                  )}
                 </li>
               )
             })}
           </ol>
+          {pathError && <p className="cu-banner danger" role="alert">{pathError}</p>}
         </div>
       </header>
 
@@ -426,7 +461,6 @@ function CaseDetails({ caseData, onSaved, closed }) {
     setSaving(true)
     setNotice(null)
     const changes = {}
-    if (form.status !== caseData.status) changes.status = form.status
     if (form.priority !== caseData.priority) changes.priority = form.priority
     if (form.assignedInvestigator.trim() !== (caseData.assignedInvestigator || '')) {
       changes.assignedInvestigator = form.assignedInvestigator.trim()
@@ -492,18 +526,6 @@ function CaseDetails({ caseData, onSaved, closed }) {
               </div>
             )}
             <div className="acc-form-grid">
-              <div className="acc-field">
-                <label htmlFor="case-status">Status</label>
-                <select
-                  id="case-status"
-                  value={form.status}
-                  disabled={saving}
-                  onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
-                >
-                  <option value={caseData.status}>{STATUS_LABEL[caseData.status]} (current)</option>
-                  {allowed.map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
-                </select>
-              </div>
               <div className="acc-field">
                 <label htmlFor="case-priority">Priority</label>
                 <select
@@ -798,7 +820,12 @@ function TransactionHistory({ customerId, caseAccount, fraudRecords }) {
         {!applied ? (
           <p className="sf-muted centered">No transactions to display. Click <strong>Get Transactions</strong> to load results.</p>
         ) : result.status === 'loading' ? (
-          <p className="sf-muted centered"><Loader2 size={15} className="cu-spin" /> Loading transactions…</p>
+          <div className="sf-skeleton-stack" role="status" aria-label="Loading">
+                <span className="sf-skeleton sf-skeleton-row" style={{ width: '100%' }} />
+                <span className="sf-skeleton sf-skeleton-row" style={{ width: '92%' }} />
+                <span className="sf-skeleton sf-skeleton-row" style={{ width: '96%' }} />
+                <span className="sf-skeleton sf-skeleton-row" style={{ width: '70%' }} />
+              </div>
         ) : result.status === 'error' ? (
           <div className="cu-banner danger" role="alert">
             <AlertCircle size={18} /> <span>{result.error}</span>

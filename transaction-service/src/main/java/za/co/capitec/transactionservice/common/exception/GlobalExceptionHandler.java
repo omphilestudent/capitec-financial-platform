@@ -32,6 +32,12 @@ public class GlobalExceptionHandler {
                 "Account service is unavailable. The transaction was not created.");
     }
 
+    @ExceptionHandler(za.co.capitec.transactionservice.transaction.service.LedgerRuleException.class)
+    public ResponseEntity<Map<String, Object>> handleLedgerRule(
+            za.co.capitec.transactionservice.transaction.service.LedgerRuleException exception) {
+        return buildResponse(HttpStatus.CONFLICT, exception.getMessage());
+    }
+
     @ExceptionHandler(InvalidTransactionFilterException.class)
     public ResponseEntity<Map<String, Object>> handleInvalidFilter(
             InvalidTransactionFilterException exception) {

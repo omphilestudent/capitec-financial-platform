@@ -1,63 +1,54 @@
 import api from './api'
 
-const TOKEN_KEY = 'capitec.statementToken'
+let sessionCache = { customerId: null, token: null, expiresAt: 0 }
 
-export const getStatementToken = () => {
-    try {
-        return sessionStorage.getItem(TOKEN_KEY) || ''
-    } catch {
-        return ''
+export const openCustomerSession = async (customerId) => {
+    const now = Date.now()
+    if (sessionCache.customerId === customerId && sessionCache.token && now < sessionCache.expiresAt - 60000) {
+        return sessionCache.token
     }
-}
-
-export const setStatementToken = (token) => {
-    try {
-        if (token) sessionStorage.setItem(TOKEN_KEY, token)
-        else sessionStorage.removeItem(TOKEN_KEY)
-    } catch {
-        return
+    const response = await api.post('/session', { customerId })
+    sessionCache = {
+        customerId,
+        token: response.data.token,
+        expiresAt: now + response.data.expiresInSeconds * 1000,
     }
+    return sessionCache.token
 }
 
-const authHeaders = () => {
-    const token = getStatementToken()
-    return token ? { Authorization: `Bearer ${token}` } : {}
-}
+const authHeaders = async (customerId) => ({ Authorization: `Bearer ${await openCustomerSession(customerId)}` })
 
-export const generateStatement = async (request) => {
-    const response = await api.post('/statements/generate', request, { headers: authHeaders() })
-    return response.data
-}
-
-export const listAccountStatements = async (accountId, page = 0, size = 10) => {
-    const response = await api.get(`/statements/accounts/${accountId}`, {
-        params: { page, size },
-        headers: authHeaders(),
-    })
-    return response.data
-}
-
-export const getStatementEligibility = async (accountId, from, to) => {
+export const getStatementEligibility = async (customerId, accountId, from, to) => {
     const response = await api.get('/statements/eligibility', {
         params: { accountId, from, to },
-        headers: authHeaders(),
+        headers: await authHeaders(customerId),
     })
     return response.data
 }
 
-export const createDownloadLink = async (statementId) => {
-    const response = await api.post(`/statements/${statementId}/download-link`, null, { headers: authHeaders() })
+export const generateStatement = async (customerId, request) => {
+    const response = await api.post('/statements/generate', request, { headers: await authHeaders(customerId) })
     return response.data
 }
 
-export const revokeDownloadLinks = async (statementId) => {
-    const response = await api.post(`/statements/${statementId}/revoke-links`, null, { headers: authHeaders() })
+export const listAccountStatements = async (customerId, accountId, page = 0, size = 20) => {
+    const response = await api.get(`/statements/accounts/${accountId}`, {
+        params: { page, size },
+        headers: await authHeaders(customerId),
+    })
     return response.data
 }
 
-export const downloadStatementPdf = async (downloadToken) => {
+export const createDownloadLink = async (customerId, statementId) => {
+    const response = await api.post(`/statements/${statementId}/download-link`, null, {
+        headers: await authHeaders(customerId),
+    })
+    return response.data
+}
+
+export const fetchStatementPdf = async (customerId, downloadToken) => {
     const response = await api.get(`/statements/download/${downloadToken}`, {
-        headers: authHeaders(),
+        headers: await authHeaders(customerId),
         responseType: 'blob',
     })
     return response.data

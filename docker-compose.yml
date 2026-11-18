@@ -99,6 +99,7 @@ services:
       DB_PASSWORD: "${DB_PASSWORD:?Set DB_PASSWORD in .env}"
       KAFKA_BOOTSTRAP_SERVERS: "kafka:19092"
       JAVA_OPTS: "-XX:MaxRAMPercentage=75"
+      TRANSACTION_SERVICE_URL: "http://transaction-service:8083"
       CUSTOMER_SERVICE_URL: "http://customer-service:8081"
     ports:
       - "8082:8082"
@@ -144,6 +145,8 @@ services:
     container_name: capitec-case-service
     restart: unless-stopped
     environment:
+      FRAUD_SERVICE_URL: "http://fraud-detection-service:8085"
+      CASE_BACKFILL_FRAUD_CASES_ENABLED: "${CASE_BACKFILL_FRAUD_CASES_ENABLED:-false}"
       DB_URL: "jdbc:postgresql://postgres:5432/case_service_db"
       DB_USERNAME: "${POSTGRES_USER:-app_user}"
       DB_PASSWORD: "${DB_PASSWORD:?Set DB_PASSWORD in .env}"
@@ -172,6 +175,7 @@ services:
       KAFKA_BOOTSTRAP_SERVERS: "kafka:19092"
       JAVA_OPTS: "-XX:MaxRAMPercentage=75"
       ACCOUNT_SERVICE_URL: "http://account-service:8082"
+      FRAUD_REEVALUATION_MODE: "${FRAUD_REEVALUATION_MODE:-OFF}"
       FRAUD_SERVICE_PORT: "8085"
     ports:
       - "8085:8085"
@@ -214,6 +218,7 @@ services:
     container_name: capitec-statement-service
     restart: unless-stopped
     environment:
+      TZ: "Africa/Johannesburg"
       DB_URL: "jdbc:postgresql://postgres:5432/statement_service_db"
       DB_USERNAME: "${POSTGRES_USER:-app_user}"
       DB_PASSWORD: "${DB_PASSWORD:?Set DB_PASSWORD in .env}"
@@ -280,6 +285,7 @@ services:
 # "${DB_PASSWORD:?Set DB_PASSWORD in .env}"
 # "kafka:19092"
       JAVA_OPTS: "-XX:MaxRAMPercentage=75"
+      STATEMENT_JWT_SECRET: "${STATEMENT_JWT_SECRET:?Set STATEMENT_JWT_SECRET in .env}"
       CUSTOMER_SERVICE_URL: "http://customer-service:8081"
       ACCOUNT_SERVICE_URL: "http://account-service:8082"
       TRANSACTION_SERVICE_URL: "http://transaction-service:8083"

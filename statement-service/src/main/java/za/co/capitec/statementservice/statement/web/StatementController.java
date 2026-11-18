@@ -67,6 +67,20 @@ public class StatementController {
         return statements.get(CurrentUser.from(jwt), statementId);
     }
 
+    @PostMapping("/{statementId}/regenerate")
+    public ResponseEntity<StatementResponse> regenerate(@AuthenticationPrincipal Jwt jwt,
+                                                        @PathVariable UUID statementId,
+                                                        @RequestBody(required = false) java.util.Map<String, String> body) {
+        String reason = body == null ? null : body.get("reason");
+        StatementService.GenerateResult result = statements.regenerate(CurrentUser.from(jwt), statementId, reason);
+        return ResponseEntity.status(result.created() ? HttpStatus.CREATED : HttpStatus.OK).body(result.statement());
+    }
+
+    @GetMapping("/{statementId}/versions")
+    public java.util.List<StatementResponse> versions(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID statementId) {
+        return statements.versions(CurrentUser.from(jwt), statementId);
+    }
+
     @PostMapping("/{statementId}/download-link")
     public ResponseEntity<DownloadLinkResponse> createLink(@AuthenticationPrincipal Jwt jwt,
                                                            @PathVariable UUID statementId) {

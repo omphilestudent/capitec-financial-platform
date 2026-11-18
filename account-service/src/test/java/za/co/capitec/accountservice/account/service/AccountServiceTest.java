@@ -36,6 +36,9 @@ class AccountServiceTest {
     @Mock
     private OutboxWriter outboxWriter;
 
+    @Mock
+    private LedgerBalanceClient ledgerBalances;
+
     @InjectMocks
     private AccountService accountService;
 
@@ -44,6 +47,29 @@ class AccountServiceTest {
     @BeforeEach
     void setUp() {
         customerId = UUID.randomUUID();
+        org.mockito.Mockito.lenient().when(ledgerBalances.postedBalance(any())).thenReturn(java.math.BigDecimal.ZERO);
+    }
+
+    @Test
+    void fundedViewKeepsOnlyPositiveLedgerBalancesAndStillReturnsTheOthers() {
+        var positive = new za.co.capitec.accountservice.account.entity.Account(customerId, "1000000001", AccountType.SAVINGS);
+        var zero = new za.co.capitec.accountservice.account.entity.Account(customerId, "1000000002", AccountType.CHEQUE);
+        var negative = new za.co.capitec.accountservice.account.entity.Account(customerId, "1000000003", AccountType.CREDIT);
+        for (var a : java.util.List.of(positive, zero, negative)) {
+            org.springframework.test.util.ReflectionTestUtils.setField(a, "id", UUID.randomUUID());
+        }
+        when(customerServiceClient.customerExists(customerId)).thenReturn(true);
+        when(accountRepository.findByCustomerId(customerId)).thenReturn(java.util.List.of(positive, zero, negative));
+        when(ledgerBalances.postedBalance(positive.getId())).thenReturn(new java.math.BigDecimal("8000.00"));
+        when(ledgerBalances.postedBalance(zero.getId())).thenReturn(new java.math.BigDecimal("0.00"));
+        when(ledgerBalances.postedBalance(negative.getId())).thenReturn(new java.math.BigDecimal("-125.50"));
+
+        var all = accountService.getAccountsByCustomer(customerId);
+        var funded = accountService.getFundedAccountsByCustomer(customerId);
+
+        assertEquals(3, all.size());
+        assertEquals(1, funded.size());
+        assertEquals("1000000001", funded.get(0).accountNumber());
     }
 
     @Test

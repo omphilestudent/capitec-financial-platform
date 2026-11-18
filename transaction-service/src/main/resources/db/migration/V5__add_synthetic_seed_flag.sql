@@ -1,0 +1,1 @@
+ALTER TABLE transactions ADD COLUMN synthetic_seed BOOLEAN NOT NULL DEFAULT FALSE;

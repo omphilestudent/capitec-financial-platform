@@ -52,7 +52,7 @@ class FraudDetectionServiceTest {
         FraudRulesProperties rules = new FraudRulesProperties(
                 new FraudRulesProperties.HighAmount(true, new BigDecimal("50000"), 70),
                 new FraudRulesProperties.Velocity(true, 5, 10, 60),
-                new FraudRulesProperties.Levels(30, 60, 80));
+                new FraudRulesProperties.Levels(30, 60, 80), new FraudRulesProperties.CrossBorder(false, 60), new FraudRulesProperties.LargeEft(false, new BigDecimal("20000"), 65));
         org.mockito.Mockito.lenient().when(processedEventStore.claim(org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any())).thenReturn(true);
         org.mockito.Mockito.lenient().when(evaluationPublications.claim(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any())).thenReturn(true);

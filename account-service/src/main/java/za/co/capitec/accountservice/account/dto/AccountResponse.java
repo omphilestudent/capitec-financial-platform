@@ -20,6 +20,20 @@ public record AccountResponse(
         LocalDateTime updatedAt
 ) {
 
+    public static AccountResponse from(Account account, BigDecimal ledgerBalance) {
+        return new AccountResponse(
+                account.getId(),
+                account.getCustomerId(),
+                account.getAccountNumber(),
+                account.getAccountType(),
+                ledgerBalance,
+                account.getCurrency(),
+                account.getStatus(),
+                account.getCreatedAt(),
+                account.getUpdatedAt()
+        );
+    }
+
     public static AccountResponse from(Account account) {
         return new AccountResponse(
                 account.getId(),

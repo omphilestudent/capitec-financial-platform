@@ -71,6 +71,10 @@ public class DownloadService {
 
         String raw = tokenFactory.newRawToken();
         LocalDateTime now = LocalDateTime.now(clock);
+        if (statement.getGeneratedAt() == null || statement.getGeneratedAt().plusMinutes(ttlMinutes).isBefore(now)) {
+            throw new DownloadLinkException(DownloadLinkException.Reason.EXPIRED,
+                    "This document access has expired. The statement is available for " + ttlMinutes + " minutes after it is generated.");
+        }
         LocalDateTime expiresAt = now.plusMinutes(ttlMinutes);
         tokens.save(new StatementDownloadToken(UUID.randomUUID(), statement.getId(), tokenFactory.hash(raw),
                 expiresAt, now));
@@ -122,7 +126,8 @@ public class DownloadService {
                     false, "link revoked");
             throw new DownloadLinkException(DownloadLinkException.Reason.REVOKED, "This download link has been revoked");
         }
-        if (token.isExpired(now)) {
+        if (statement.getGeneratedAt() == null || statement.getGeneratedAt().plusMinutes(ttlMinutes).isBefore(now)
+                || token.isExpired(now)) {
             access.record(statement.getId(), statement.getCustomerId(), user.subject(), AccessType.DOWNLOAD_ATTEMPT,
                     false, "link expired");
             throw new DownloadLinkException(DownloadLinkException.Reason.EXPIRED, "This download link has expired");

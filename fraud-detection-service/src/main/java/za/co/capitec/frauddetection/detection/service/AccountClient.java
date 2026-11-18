@@ -30,7 +30,7 @@ public class AccountClient {
     public Optional<AccountView> findAccount(UUID accountId) {
         try {
             AccountView view = restClient.get()
-                    .uri("/api/v1/accounts/{id}", accountId)
+                    .uri("/api/v1/accounts/{id}/reference", accountId)
                     .retrieve()
                     .body(AccountView.class);
             return Optional.ofNullable(view);

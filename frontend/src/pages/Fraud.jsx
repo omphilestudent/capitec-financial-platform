@@ -39,7 +39,12 @@ function Level({ value }) {
 
 function Panel({ state, onRetry, children }) {
   if (state.status === 'loading') {
-    return <p className="sf-muted centered"><Loader2 size={15} className="cu-spin" /> Loading…</p>
+    return <div className="sf-skeleton-stack" role="status" aria-label="Loading">
+        <span className="sf-skeleton sf-skeleton-row" style={{ width: '100%' }} />
+        <span className="sf-skeleton sf-skeleton-row" style={{ width: '92%' }} />
+        <span className="sf-skeleton sf-skeleton-row" style={{ width: '96%' }} />
+        <span className="sf-skeleton sf-skeleton-row" style={{ width: '70%' }} />
+      </div>;
   }
   if (state.status === 'error') {
     return (

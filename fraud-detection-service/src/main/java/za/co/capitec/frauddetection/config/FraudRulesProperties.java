@@ -12,8 +12,17 @@ import java.math.BigDecimal;
 public record FraudRulesProperties(
         HighAmount highAmount,
         Velocity velocity,
-        Levels levels
+        Levels levels,
+        CrossBorder crossBorder,
+        LargeEft largeEft
 ) {
+
+
+    /** A transaction in a currency other than ZAR. */
+    public record CrossBorder(boolean enabled, int weight) {}
+
+    /** An EFT (identified from the description) at or above the threshold. */
+    public record LargeEft(boolean enabled, BigDecimal threshold, int weight) {}
 
     /** A single transaction at or above the threshold. */
     public record HighAmount(boolean enabled, BigDecimal threshold, int weight) {}

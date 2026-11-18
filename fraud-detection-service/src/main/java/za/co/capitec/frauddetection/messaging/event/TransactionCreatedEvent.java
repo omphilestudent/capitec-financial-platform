@@ -13,8 +13,14 @@ public record TransactionCreatedEvent(
         BigDecimal amount,
         String currency,
         String status,
-        LocalDateTime createdAt
+        LocalDateTime createdAt,
+        String description
 ) {
+    public TransactionCreatedEvent(UUID eventId, UUID transactionId, UUID accountId, String transactionReference,
+                                   String type, BigDecimal amount, String currency, String status, LocalDateTime createdAt) {
+        this(eventId, transactionId, accountId, transactionReference, type, amount, currency, status, createdAt, null);
+    }
+
     public static final String TOPIC = "transaction.events";
     public static final String LEGACY_TOPIC = "transaction-events";
 }

@@ -37,6 +37,23 @@ public class TransactionController {
         return transactionService.getRecentTransactions();
     }
 
+    @PostMapping("/funding")
+    @ResponseStatus(HttpStatus.CREATED)
+    public TransactionResponse postFunding(
+            @jakarta.validation.Valid @RequestBody za.co.capitec.transactionservice.transaction.dto.FundingRequest request) {
+        return transactionService.postFunding(request);
+    }
+
+    @PostMapping("/{id}/post")
+    public TransactionResponse post(@PathVariable UUID id) {
+        return transactionService.postPending(id);
+    }
+
+    @GetMapping("/account/{accountId}/balance")
+    public za.co.capitec.transactionservice.transaction.dto.AccountBalanceResponse balance(@PathVariable UUID accountId) {
+        return transactionService.balance(accountId);
+    }
+
     @GetMapping("/{id}")
     public TransactionResponse getTransaction(@PathVariable UUID id) {
         return transactionService.getTransactionById(id);

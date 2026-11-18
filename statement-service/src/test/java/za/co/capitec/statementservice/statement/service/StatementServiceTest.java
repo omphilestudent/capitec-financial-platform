@@ -72,12 +72,13 @@ class StatementServiceTest {
                 ledgerRow("2026-09-25T09:00:00", "2000.00", "CREDIT", "NOT_DETECTED", false),
                 ledgerRow("2026-10-03T09:00:00", "150.00", "DEBIT", "NOT_DETECTED", false),
                 ledgerRow("2026-10-10T09:00:00", "500.00", "CREDIT", "NOT_DETECTED", false)));
-        when(statements.findByAccountIdAndPeriodStartAndPeriodEnd(any(), any(), any())).thenReturn(Optional.empty());
+        when(statements.findByAccountIdAndPeriodStartAndPeriodEndAndVersionStatus(any(), any(), any(), eq("CURRENT"))).thenReturn(Optional.empty());
         when(statements.save(any(Statement.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(statements.saveAndFlush(any(Statement.class))).thenAnswer(inv -> inv.getArgument(0));
         when(storage.store(anyString(), any())).thenAnswer(inv -> inv.getArgument(0));
 
         service = new StatementService(accounts, customers, new EligibilityService(ledger), new LedgerCalculator(),
-                new StatementPdfRenderer(), storage, statements, access, outbox, 366);
+                new StatementPdfRenderer(), storage, statements, mock(za.co.capitec.statementservice.statement.repository.StatementSnapshotRepository.class), access, outbox, 366);
     }
 
     private LedgerRow ledgerRow(String when, String amount, String direction, String outcome, boolean flagged) {
@@ -151,8 +152,8 @@ class StatementServiceTest {
         Statement existing = new Statement(UUID.randomUUID(), "STM-EXISTING", customerId, accountId, "29390331863",
                 "SAVINGS", LocalDate.of(2026, 10, 1), LocalDate.of(2026, 10, 31), "ZAR");
         existing.markGenerated(BigDecimal.ONE, BigDecimal.TEN, BigDecimal.TEN, BigDecimal.ZERO, "k", LocalDateTime.now());
-        when(statements.findByAccountIdAndPeriodStartAndPeriodEnd(accountId, LocalDate.of(2026, 10, 1),
-                LocalDate.of(2026, 10, 31))).thenReturn(Optional.of(existing));
+        when(statements.findByAccountIdAndPeriodStartAndPeriodEndAndVersionStatus(eq(accountId), eq(LocalDate.of(2026, 10, 1)),
+                eq(LocalDate.of(2026, 10, 31)), eq("CURRENT"))).thenReturn(Optional.of(existing));
 
         var result = service.generate(owner, monthly(2026, 10));
 

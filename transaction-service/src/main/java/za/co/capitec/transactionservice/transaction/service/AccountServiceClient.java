@@ -23,6 +23,27 @@ public class AccountServiceClient {
                 .build();
     }
 
+    public record AccountReference(String accountType) {
+    }
+
+    public String accountType(UUID accountId) {
+        try {
+            AccountReference reference = restClient.get()
+                    .uri("/api/v1/accounts/{id}/reference", accountId)
+                    .retrieve()
+                    .body(AccountReference.class);
+            if (reference == null || reference.accountType() == null) {
+                throw new AccountServiceUnavailableException("Account type unavailable", null);
+            }
+            return reference.accountType();
+        } catch (HttpClientErrorException.NotFound exception) {
+            throw new AccountNotFoundException("Account not found: " + accountId);
+        } catch (ResourceAccessException | HttpServerErrorException exception) {
+            throw new AccountServiceUnavailableException(
+                    "Account service is unavailable", exception);
+        }
+    }
+
     /**
      * @return true if the account exists, false if account-service reports 404.
      * @throws AccountServiceUnavailableException if account-service cannot be reached
@@ -31,7 +52,7 @@ public class AccountServiceClient {
     public boolean accountExists(UUID accountId) {
         try {
             restClient.get()
-                    .uri("/api/v1/accounts/{id}", accountId)
+                    .uri("/api/v1/accounts/{id}/reference", accountId)
                     .retrieve()
                     .toBodilessEntity();
 
