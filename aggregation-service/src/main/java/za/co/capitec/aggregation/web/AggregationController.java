@@ -78,6 +78,16 @@ public class AggregationController {
         return new TransactionPage(items, page, size, total, (int) Math.ceil(total / (double) size));
     }
 
+    @GetMapping("/transactions/{id}")
+    public AggregationQueries.TransactionRow transaction(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id) {
+        AggregationQueries.TransactionRow row = queries.transaction(id);
+        if (row == null) {
+            throw new za.co.capitec.aggregation.common.exception.NotFoundException("Transaction not found: " + id);
+        }
+        CurrentUser.from(jwt).requireCustomer(row.customerId());
+        return row;
+    }
+
     @GetMapping("/accounts/{accountId}/summary")
     public AggregationQueries.Totals accountSummary(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID accountId,
                                                     @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,

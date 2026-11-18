@@ -1,3 +1,4 @@
+import { openCustomerSession } from './statementService'
 import api from './api'
 
 const filterParams = (filter = {}) => {
@@ -31,4 +32,28 @@ export const getTransactionSummary = async (accountId, filter) => {
 export const createTransaction = async (transaction) => {
     const response = await api.post('/transactions', transaction)
     return response.data
+}
+
+export const getTransactionForFraud = async (transactionId, customerId) => {
+    try {
+        return await getTransactionById(transactionId)
+    } catch (err) {
+        if (err.response?.status !== 404) throw err
+        const token = await openCustomerSession(customerId)
+        const response = await api.get(`/aggregation/transactions/${transactionId}`, {
+            headers: { Authorization: `Bearer ${token}` },
+        })
+        const row = response.data
+        return {
+            id: row.id,
+            accountId: row.accountId,
+            transactionReference: row.externalId,
+            type: row.direction,
+            amount: row.amount,
+            currency: row.currency,
+            description: row.category,
+            status: row.status,
+            createdAt: row.occurredAt,
+        }
+    }
 }

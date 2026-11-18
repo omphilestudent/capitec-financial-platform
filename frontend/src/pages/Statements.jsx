@@ -36,7 +36,7 @@ const errorMessage = (err) => {
   }
   if (status === 403) return 'You are not authorised to access this account or statement.'
   if (status === 404) return 'The account or statement could not be found.'
-  if (status === 410) return 'This document access has expired. Open the statement again to refresh it.'
+  if (status === 410) return 'The access period for this statement has ended. It is no longer available to view.'
   if (status === 503) return 'The statement service is temporarily unavailable. Try again shortly.'
   return data.message || 'The request failed. Please try again.'
 }
@@ -159,7 +159,6 @@ export default function StatementsPanel({ customerId, caseAccount }) {
     return generated > 0 && now - generated < ACCESS_WINDOW_MS
   }
   const available = history.items.filter(isWithinAccessWindow)
-  const expiredStatements = history.items.filter((s) => !isWithinAccessWindow(s))
 
   const secondsLeft = viewer.expiresAt ? Math.max(0, Math.floor((viewer.expiresAt - now) / 1000)) : null
   const expired = viewer.status === 'ready' && secondsLeft === 0
@@ -241,9 +240,7 @@ export default function StatementsPanel({ customerId, caseAccount }) {
                 </span>
               )}
               {viewer.statement && <button className="sf-btn outline" onClick={closeViewer}>Close</button>}
-              {expired && viewer.statement && (
-                <button className="sf-btn primary" onClick={() => openStatement(viewer.statement)}>Reopen statement</button>
-              )}
+
             </div>
           </div>
 
@@ -256,7 +253,7 @@ export default function StatementsPanel({ customerId, caseAccount }) {
           )}
           {expired && (
             <p className="cu-banner danger" role="status">
-              This document access has expired. Reopen the statement to view it again.
+              The access period for this statement has ended. It is no longer available to view.
             </p>
           )}
 
@@ -319,18 +316,6 @@ export default function StatementsPanel({ customerId, caseAccount }) {
             </div>
           )}
 
-          {history.status === 'ready' && expiredStatements.length > 0 && (
-            <div className="txn-activity" aria-label="Statement activity">
-              <strong>Activity</strong>
-              <ul>
-                {expiredStatements.map((s) => (
-                  <li key={s.id}>
-                    Statement {s.statementReference} was generated on {dateTimeText(s.generatedAt)}. Its access period has ended.
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
         </>
       )}
     </div>

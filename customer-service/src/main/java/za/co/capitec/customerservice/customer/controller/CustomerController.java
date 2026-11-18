@@ -58,4 +58,13 @@ public class CustomerController {
 
         return ResponseEntity.ok(CustomerResponse.from(customer));
     }
+
+    @org.springframework.web.bind.annotation.PatchMapping("/{id}/name")
+    public ResponseEntity<CustomerResponse> updateName(
+            @PathVariable UUID id,
+            @jakarta.validation.Valid @org.springframework.web.bind.annotation.RequestBody
+            za.co.capitec.customerservice.customer.dto.UpdateCustomerNameRequest request) {
+        return ResponseEntity.ok(CustomerResponse.from(
+                customerService.updateName(id, request.firstName(), request.lastName())));
+    }
 }

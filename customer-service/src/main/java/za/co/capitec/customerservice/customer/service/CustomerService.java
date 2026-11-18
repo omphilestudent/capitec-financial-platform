@@ -91,4 +91,19 @@ public class CustomerService {
                         "Customer not found: " + id
                 ));
     }
+
+    public Customer updateName(UUID customerId, String firstName, String lastName) {
+        Customer customer = customerRepository.findById(customerId)
+                .orElseThrow(() -> new za.co.capitec.customerservice.customer.exception.CustomerNotFoundException(
+                        "Customer not found: " + customerId));
+        customer.rename(firstName.trim(), lastName.trim());
+        Customer saved = customerRepository.save(customer);
+        java.util.UUID eventId = java.util.UUID.randomUUID();
+        outboxWriter.write(eventId, za.co.capitec.customerservice.customer.event.CustomerNameUpdatedEvent.TOPIC,
+                saved.getId().toString(),
+                za.co.capitec.customerservice.customer.event.CustomerNameUpdatedEvent.EVENT_TYPE,
+                new za.co.capitec.customerservice.customer.event.CustomerNameUpdatedEvent(eventId, saved.getId(),
+                        saved.getFirstName(), saved.getLastName(), java.time.LocalDateTime.now()));
+        return saved;
+    }
 }
