@@ -41,7 +41,7 @@ export const cases = [
         title: 'Fields',
         fields: [
           ['Case Number', 'CS-1001', 'link'],
-          ['Client Name', 'Sample Client A', 'link'],
+          ['Client Name', 'Sample Client A', 'client'],
           ['Case Origin', 'Monitoring'],
           ['Priority', 'Critical'],
           ['Contact Name', ''],
@@ -147,7 +147,7 @@ export const cases = [
         title: 'Fields',
         fields: [
           ['Case Number', 'CS-1002', 'link'],
-          ['Client Name', 'Sample Client B', 'link'],
+          ['Client Name', 'Sample Client B', 'client'],
           ['Case Origin', 'Operations'],
           ['Priority', 'Low'],
           ['Financial Account', '0000000002', 'link'],

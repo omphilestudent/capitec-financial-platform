@@ -65,6 +65,14 @@ function App() {
   const [caseFrauds, setCaseFrauds] = useState({})
   const [activeSub, setActiveSub] = useState(null)
 
+  // Set when a case links to a client. The Customers page opens that client.
+  const [customerTarget, setCustomerTarget] = useState(null)
+
+  const openCustomerFromCase = (name, customerId = null) => {
+    setCustomerTarget({ name, customerId, requestedAt: Date.now() })
+    setObject('Customers')
+  }
+
   const openCase = (id) => {
     setOpenCases((ids) => (ids.includes(id) ? ids : [...ids, id]))
     setActiveCaseId(id)
@@ -237,12 +245,19 @@ function App() {
       <main className="sf-main-area">
         {object === 'Home' && <HomePage onOpenCase={openCase} onNavigate={chooseObject} />}
 
-        {object === 'Customers' && <Customers />}
+        {object === 'Customers' && <Customers target={customerTarget} />}
 
-        {object === 'Cases' && !activeCase && <CaseList onOpen={openCase} />}
+        {object === 'Cases' && !activeCase && (
+          <CaseList onOpen={openCase} onOpenCustomer={openCustomerFromCase} />
+        )}
 
         {object === 'Cases' && activeCase && !activeFraud && (
-          <CaseRecord key={activeCase.id} caseItem={activeCase} onOpenFraud={openFraud} />
+          <CaseRecord
+            key={activeCase.id}
+            caseItem={activeCase}
+            onOpenFraud={openFraud}
+            onOpenCustomer={openCustomerFromCase}
+          />
         )}
 
         {object === 'Cases' && activeCase && activeFraud && (
