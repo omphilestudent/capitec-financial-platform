@@ -23,13 +23,18 @@ public record StatementResponse(
         String currency,
         String status,
         String failureReason,
-        LocalDateTime generatedAt) {
+        LocalDateTime generatedAt,
+        int versionNumber,
+        String versionStatus,
+        UUID supersededBy,
+        String regenerationReason) {
 
     public static StatementResponse from(Statement s) {
         return new StatementResponse(
                 s.getId(), s.getStatementReference(), s.getCustomerId(), s.getAccountId(),
                 s.getAccountNumber(), s.getAccountType(), s.getPeriodStart(), s.getPeriodEnd(),
                 s.getOpeningBalance(), s.getClosingBalance(), s.getTotalCredits(), s.getTotalDebits(),
-                s.getCurrency(), s.getStatus().name(), s.getFailureReason(), s.getGeneratedAt());
+                s.getCurrency(), s.getStatus().name(), s.getFailureReason(), s.getGeneratedAt(),
+                s.getVersionNumber(), s.getVersionStatus(), s.getSupersededBy(), s.getRegenerationReason());
     }
 }

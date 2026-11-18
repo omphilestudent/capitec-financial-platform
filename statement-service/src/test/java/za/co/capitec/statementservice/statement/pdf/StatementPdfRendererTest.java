@@ -38,7 +38,9 @@ class StatementPdfRendererTest {
         assertEquals("%PDF", new String(pdf, 0, 4, java.nio.charset.StandardCharsets.US_ASCII));
         try (PDDocument doc = Loader.loadPDF(pdf)) {
             String text = new PDFTextStripper().getText(doc);
-            assertTrue(text.contains("Capitec Financial Intelligence"));
+            assertTrue(text.contains("Capitec"));
+            assertFalse(text.contains("Financial Intelligence"));
+            assertTrue(text.contains("Main Account Statement"));
             assertTrue(text.contains("STM-20261118-ABCD1234"));
             assertTrue(text.contains("29390331863"));
             assertTrue(text.contains("R 1 000.00"));

@@ -21,6 +21,17 @@ public class GlobalExceptionHandler {
         return buildResponse(HttpStatus.NOT_FOUND, exception.getMessage());
     }
 
+    @ExceptionHandler(LedgerUnavailableException.class)
+    public org.springframework.http.ResponseEntity<java.util.Map<String, Object>> handleLedgerUnavailable(
+            LedgerUnavailableException exception) {
+        java.util.Map<String, Object> body = new java.util.HashMap<>();
+        body.put("timestamp", java.time.Instant.now());
+        body.put("status", 503);
+        body.put("error", "Service Unavailable");
+        body.put("message", exception.getMessage());
+        return org.springframework.http.ResponseEntity.status(503).body(body);
+    }
+
     @ExceptionHandler(AccountNotFoundException.class)
     public ResponseEntity<Map<String, Object>> handleAccountNotFound(
             AccountNotFoundException exception) {

@@ -49,6 +49,17 @@ public class LedgerRepository {
                 transactionKey, accountId, outcome, LocalDateTime.now()) == 1;
     }
 
+    public void applyRevision(UUID transactionKey, UUID accountId, UUID supersededFraudId, String revisedOutcome) {
+        if (supersededFraudId != null) {
+            jdbc.update("DELETE FROM statement_fraud_flags WHERE transaction_key = ? AND fraud_id = ?",
+                    transactionKey, supersededFraudId);
+        }
+        jdbc.update(
+                "INSERT INTO statement_fraud_decisions (transaction_key, account_id, outcome, received_at) "
+                        + "VALUES (?, ?, ?, ?) ON CONFLICT (transaction_key) DO UPDATE SET outcome = EXCLUDED.outcome",
+                transactionKey, accountId, revisedOutcome, LocalDateTime.now());
+    }
+
     public boolean isFlagged(UUID transactionKey) {
         Integer count = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM statement_fraud_flags WHERE transaction_key = ?", Integer.class, transactionKey);

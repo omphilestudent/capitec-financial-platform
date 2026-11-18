@@ -24,13 +24,16 @@ public class AccountService {
     private final CustomerServiceClient customerServiceClient;
     private final AccountNumberGenerator accountNumberGenerator;
     private final OutboxWriter outboxWriter;
+    private final LedgerBalanceClient ledgerBalances;
 
     public AccountService(
             AccountRepository accountRepository,
             CustomerServiceClient customerServiceClient,
             AccountNumberGenerator accountNumberGenerator,
-            OutboxWriter outboxWriter
+            OutboxWriter outboxWriter,
+            LedgerBalanceClient ledgerBalances
     ) {
+        this.ledgerBalances = ledgerBalances;
         this.accountRepository = accountRepository;
         this.customerServiceClient = customerServiceClient;
         this.accountNumberGenerator = accountNumberGenerator;
@@ -72,7 +75,7 @@ public class AccountService {
                 )
         );
 
-        return AccountResponse.from(saved);
+        return AccountResponse.from(saved, java.math.BigDecimal.ZERO);
     }
 
     @Transactional(readOnly = true)
@@ -86,7 +89,21 @@ public class AccountService {
 
         return accountRepository.findByCustomerId(customerId)
                 .stream()
-                .map(AccountResponse::from)
+                .map(a -> AccountResponse.from(a, ledgerBalances.postedBalance(a.getId())))
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public AccountResponse getAccountReference(UUID accountId) {
+        Account account = accountRepository.findById(accountId)
+                .orElseThrow(() -> new AccountNotFoundException("Account not found: " + accountId));
+        return AccountResponse.from(account, null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<AccountResponse> getFundedAccountsByCustomer(UUID customerId) {
+        return getAccountsByCustomer(customerId).stream()
+                .filter(a -> a.balance() != null && a.balance().compareTo(java.math.BigDecimal.ZERO) > 0)
                 .toList();
     }
 
@@ -98,7 +115,7 @@ public class AccountService {
                         "Account not found: " + accountId
                 ));
 
-        return AccountResponse.from(account);
+        return AccountResponse.from(account, ledgerBalances.postedBalance(account.getId()));
     }
 
     private String generateUniqueAccountNumber() {

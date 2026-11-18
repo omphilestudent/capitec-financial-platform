@@ -87,6 +87,19 @@ public class StatementIntegrationListeners {
         }
     }
 
+    @KafkaListener(topics = IntegrationPayloads.FRAUD_REVISIONS_TOPIC, groupId = "${spring.kafka.consumer.group-id}")
+    @Transactional
+    public void onFraudRevised(String json) throws JsonProcessingException {
+        IntegrationPayloads.FraudRevision revision = parse(json, IntegrationPayloads.FraudRevision.class);
+        require(revision.eventId() != null && revision.transactionId() != null && revision.accountId() != null
+                && revision.revisedOutcome() != null, "fraud revision is incomplete");
+        if (!inbound.claim(revision.eventId(), IntegrationPayloads.FRAUD_REVISIONS_TOPIC)) {
+            return;
+        }
+        ledger.applyRevision(revision.transactionId(), revision.accountId(), revision.supersedesFraudId(),
+                revision.revisedOutcome());
+    }
+
     private static <T> T parse(String json, Class<T> type) throws JsonProcessingException {
         Objects.requireNonNull(json, "empty payload");
         try {

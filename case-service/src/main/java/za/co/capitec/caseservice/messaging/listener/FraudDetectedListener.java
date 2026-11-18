@@ -25,7 +25,7 @@ public class FraudDetectedListener {
 
     @KafkaListener(topics = FraudDetectedEvent.TOPIC, groupId = "${spring.kafka.consumer.group-id}")
     public void onFraudDetected(FraudDetectedEvent event) {
-        if (event == null || !event.requiresInvestigation()) {
+        if (event == null) {
             return;
         }
         var caseResponse = caseService.openCaseForFraud(event);

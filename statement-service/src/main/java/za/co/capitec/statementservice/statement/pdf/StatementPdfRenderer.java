@@ -7,6 +7,7 @@ import org.apache.pdfbox.pdmodel.PDPageContentStream;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
+import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
 import org.springframework.stereotype.Component;
 
 import java.io.ByteArrayOutputStream;
@@ -25,16 +26,27 @@ public class StatementPdfRenderer {
     private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("dd MMM yyyy", Locale.ENGLISH);
     private static final DateTimeFormatter DATE_TIME = DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm", Locale.ENGLISH);
 
+    private static final byte[] LOGO = loadLogo();
+
     private final PDType1Font regular = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
     private final PDType1Font bold = new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD);
 
+    private static byte[] loadLogo() {
+        try (var in = StatementPdfRenderer.class.getResourceAsStream("/branding/capitec-logo.png")) {
+            return in == null ? null : in.readAllBytes();
+        } catch (IOException e) {
+            return null;
+        }
+    }
+
     public byte[] render(StatementDocument doc) throws IOException {
         try (PDDocument pdf = new PDDocument(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            PDImageXObject logo = LOGO == null ? null : PDImageXObject.createFromByteArray(pdf, LOGO, "capitec-logo");
             PDPage page = newPage(pdf);
             PDPageContentStream cs = new PDPageContentStream(pdf, page);
             float top = PDRectangle.A4.getHeight() - MARGIN;
 
-            top = header(cs, doc, top);
+            top = header(cs, doc, top, logo);
             top = summary(cs, doc, top);
             top = tableHeader(cs, top);
 
@@ -72,9 +84,15 @@ public class StatementPdfRenderer {
         return page;
     }
 
-    private float header(PDPageContentStream cs, StatementDocument doc, float top) throws IOException {
-        text(cs, bold, 16, MARGIN, top - 16, "Capitec Financial Intelligence");
-        text(cs, bold, 12, MARGIN, top - 34, "Account Statement");
+    private float header(PDPageContentStream cs, StatementDocument doc, float top, PDImageXObject logo) throws IOException {
+        if (logo != null) {
+            float logoHeight = 26f;
+            float logoWidth = logoHeight * logo.getWidth() / logo.getHeight();
+            cs.drawImage(logo, MARGIN, top - logoHeight, logoWidth, logoHeight);
+        } else {
+            text(cs, bold, 16, MARGIN, top - 16, "Capitec");
+        }
+        text(cs, bold, 12, MARGIN, top - 34, "Main Account Statement");
         float right = PDRectangle.A4.getWidth() - MARGIN;
         textRight(cs, regular, 9, right, top - 16, "Statement reference: " + doc.statementReference());
         textRight(cs, regular, 9, right, top - 28, "Generated: " + doc.generatedAt().format(DATE_TIME));
@@ -84,10 +102,10 @@ public class StatementPdfRenderer {
         y -= 16;
         field(cs, MARGIN, y, "Customer", doc.customerName());
         field(cs, MARGIN + 260, y, "Customer ID", doc.customerId());
-        y -= 16;
+        y -= 30;
         field(cs, MARGIN, y, "Account number", doc.accountNumber());
         field(cs, MARGIN + 260, y, "Account type", titleCase(doc.accountType()));
-        y -= 16;
+        y -= 30;
         field(cs, MARGIN, y, "Statement period", DATE.format(doc.periodStart()) + " to " + DATE.format(doc.periodEnd()));
         field(cs, MARGIN + 260, y, "Currency", doc.currency());
         return y - 18;
@@ -108,9 +126,9 @@ public class StatementPdfRenderer {
             text(cs, bold, 11, x, y - 26, cells[i][1]);
         }
         y -= 40;
-        text(cs, regular, 7, MARGIN, y, "Balances are derived from the transaction ledger: the opening balance is the sum of all"
-                + " posted credits less debits before the period start. FAILED transactions are excluded from balances. Transactions under review are excluded from this statement and from its balances.");
-        return y - 14;
+        text(cs, regular, 7, MARGIN, y, "Balances are derived from the transaction ledger: the opening balance is the sum of all posted credits");
+        text(cs, regular, 7, MARGIN, y - 9, "less debits before the period start. FAILED transactions and transactions under review are excluded from this statement and its balances.");
+        return y - 24;
     }
 
     private float tableHeader(PDPageContentStream cs, float top) throws IOException {
@@ -148,7 +166,7 @@ public class StatementPdfRenderer {
             try (PDPageContentStream cs = new PDPageContentStream(pdf, page, PDPageContentStream.AppendMode.APPEND, true, true)) {
                 float right = PDRectangle.A4.getWidth() - MARGIN;
                 line(cs, MARGIN, 40, right, 40);
-                text(cs, regular, 7, MARGIN, 28, "Capitec Financial Intelligence  |  " + doc.statementReference()
+                text(cs, regular, 7, MARGIN, 28, "Capitec  |  " + doc.statementReference()
                         + "  |  Confidential: issued to the account holder only");
                 textRight(cs, regular, 7, right, 28, "Page " + (i + 1) + " of " + total);
             }

@@ -48,6 +48,10 @@ public class StatementDownloadToken {
         return revokedAt != null;
     }
 
+    public void extendTo(LocalDateTime expiresAt) {
+        this.expiresAt = expiresAt;
+    }
+
     public void revoke(LocalDateTime when) {
         if (revokedAt == null) {
             revokedAt = when;

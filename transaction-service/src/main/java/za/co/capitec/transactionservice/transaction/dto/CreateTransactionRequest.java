@@ -26,5 +26,14 @@ public record CreateTransactionRequest(
         String currency,
 
         @Size(max = 500, message = "Description cannot exceed 500 characters")
-        String description
-) {}
+        String description,
+
+        Boolean syntheticSeed,
+
+        java.time.LocalDateTime occurredAt
+) {
+    public CreateTransactionRequest(UUID accountId, TransactionType type, BigDecimal amount, String currency,
+                                    String description) {
+        this(accountId, type, amount, currency, description, null, null);
+    }
+}

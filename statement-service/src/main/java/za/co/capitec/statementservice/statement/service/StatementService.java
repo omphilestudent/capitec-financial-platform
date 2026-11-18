@@ -39,7 +39,9 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.util.HexFormat;
+import java.util.List;
 import java.util.Optional;
+import za.co.capitec.statementservice.statement.domain.StatementStatus;
 import java.util.UUID;
 
 @Service
@@ -59,6 +61,7 @@ public class StatementService {
     private final StatementPdfRenderer pdfRenderer;
     private final StatementStorage storage;
     private final StatementRepository statements;
+    private final za.co.capitec.statementservice.statement.repository.StatementSnapshotRepository snapshots;
     private final StatementAccess access;
     private final OutboxWriter outboxWriter;
     private final Clock clock;
@@ -71,6 +74,7 @@ public class StatementService {
                             StatementPdfRenderer pdfRenderer,
                             StatementStorage storage,
                             StatementRepository statements,
+                            za.co.capitec.statementservice.statement.repository.StatementSnapshotRepository snapshots,
                             StatementAccess access,
                             OutboxWriter outboxWriter,
                             @Value("${statement.max-custom-range-days:366}") int maxCustomRangeDays) {
@@ -81,6 +85,7 @@ public class StatementService {
         this.pdfRenderer = pdfRenderer;
         this.storage = storage;
         this.statements = statements;
+        this.snapshots = snapshots;
         this.access = access;
         this.outboxWriter = outboxWriter;
         this.clock = Clock.systemDefaultZone();
@@ -92,38 +97,110 @@ public class StatementService {
         LocalDate[] period = resolvePeriod(request, today);
 
         AccountView account = accountClient.getAccount(request.accountId());
+        authorise(user, account);
+        if (request.accountType() != null && !request.accountType().equals(account.accountType())) {
+            throw new InvalidStatementRequestException("accountType does not match the selected account");
+        }
+
+        Optional<Statement> current = statements.findByAccountIdAndPeriodStartAndPeriodEndAndVersionStatus(
+                account.id(), period[0], period[1], "CURRENT");
+        Basis basis = basisFor(account, period);
+        if (current.isPresent() && current.get().getStatus() == StatementStatus.GENERATED) {
+            boolean unchanged = basis.fingerprint().equals(current.get().getEligibilityFingerprint());
+            access.record(current.get().getId(), account.customerId(), user.subject(), AccessType.GENERATED, true,
+                    unchanged ? "already generated" : "eligibility changed; regeneration required");
+            return new GenerateResult(StatementResponse.from(current.get()), false);
+        }
+        return issueVersion(user, account, period, basis, current.orElse(null), "Initial generation");
+    }
+
+    @Transactional
+    public GenerateResult regenerate(CurrentUser user, UUID statementId, String reason) {
+        Statement previous = find(statementId);
+        user.requireCustomer(previous.getCustomerId());
+        if (!"CURRENT".equals(previous.getVersionStatus())) {
+            throw new InvalidStatementRequestException("Only the current version of a statement can be regenerated");
+        }
+        if (previous.getStatus() != StatementStatus.GENERATED) {
+            throw new InvalidStatementRequestException("Only a generated statement can be regenerated");
+        }
+        AccountView account = accountClient.getAccount(previous.getAccountId());
+        LocalDate[] period = {previous.getPeriodStart(), previous.getPeriodEnd()};
+        Basis basis = basisFor(account, period);
+        if (basis.fingerprint().equals(previous.getEligibilityFingerprint())) {
+            access.record(previous.getId(), previous.getCustomerId(), user.subject(), AccessType.GENERATED, true,
+                    "regeneration requested; eligibility unchanged, no new version");
+            return new GenerateResult(StatementResponse.from(previous), false);
+        }
+        String why = reason == null || reason.isBlank() ? "Eligibility changed since the statement was issued" : reason.trim();
+        return issueVersion(user, account, period, basis, previous, why);
+    }
+
+    @Transactional(readOnly = true)
+    public List<StatementResponse> versions(CurrentUser user, UUID statementId) {
+        Statement anchor = find(statementId);
+        user.requireCustomer(anchor.getCustomerId());
+        List<Statement> all = statements.findByAccountIdAndPeriodStartAndPeriodEndOrderByVersionNumberDesc(
+                anchor.getAccountId(), anchor.getPeriodStart(), anchor.getPeriodEnd());
+        access.record(anchor.getId(), anchor.getCustomerId(), user.subject(), AccessType.LIST, true, "versions");
+        return all.stream()
+                .filter(v -> user.staff() || "CURRENT".equals(v.getVersionStatus()))
+                .map(StatementResponse::from)
+                .toList();
+    }
+
+    private void authorise(CurrentUser user, AccountView account) {
         try {
             user.requireCustomer(account.customerId());
         } catch (AccessDeniedStatementException denied) {
             access.record(null, account.customerId(), user.subject(), AccessType.GENERATED, false, denied.getMessage());
             throw denied;
         }
+    }
 
-        Optional<Statement> existing = statements.findByAccountIdAndPeriodStartAndPeriodEnd(
-                account.id(), period[0], period[1]);
-        if (existing.isPresent() && existing.get().getStatus().name().equals("GENERATED")) {
-            access.record(existing.get().getId(), account.customerId(), user.subject(), AccessType.GENERATED, true,
-                    "already generated");
-            return new GenerateResult(StatementResponse.from(existing.get()), false);
-        }
+    private record Basis(EligibilityService.Summary summary, List<EligibilityService.Entry> entries, String fingerprint) {
+    }
 
-        if (request.accountType() != null && !request.accountType().equals(account.accountType())) {
-            throw new InvalidStatementRequestException("accountType does not match the selected account");
-        }
-        var ledgerEntries = eligibility.load(account.customerId(), account.id(), period[1]);
-        EligibilityService.Summary summary = EligibilityService.summarise(ledgerEntries, period[0], period[1]);
-        if (summary.eligibleInPeriod() < 2) {
-            throw new InsufficientEligibleTransactionsException(summary.eligibleInPeriod());
-        }
+    private Basis basisFor(AccountView account, LocalDate[] period) {
+        var entries = eligibility.load(account.customerId(), account.id(), period[1]);
+        EligibilityService.Summary summary = EligibilityService.summarise(entries, period[0], period[1]);
+        return new Basis(summary, entries, fingerprintOf(entries));
+    }
 
-        Statement statement = existing.orElseGet(() -> new Statement(
-                UUID.randomUUID(), newReference(today), account.customerId(), account.id(),
-                account.accountNumber(), account.accountType(), period[0], period[1], account.currency()));
+    static String fingerprintOf(List<EligibilityService.Entry> entries) {
+        StringBuilder basis = new StringBuilder();
+        entries.stream()
+                .filter(e -> e.status() == EligibilityService.Status.ELIGIBLE)
+                .sorted(java.util.Comparator.comparing(e -> e.row().aggregatedTransactionId().toString()))
+                .forEach(e -> basis.append(e.row().aggregatedTransactionId()).append('|')
+                        .append(e.row().direction()).append('|')
+                        .append(e.row().amount().toPlainString()).append('|')
+                        .append(e.row().occurredAt()).append('\n'));
+        try {
+            byte[] digest = java.security.MessageDigest.getInstance("SHA-256")
+                    .digest(basis.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            return java.util.HexFormat.of().formatHex(digest);
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    private GenerateResult issueVersion(CurrentUser user, AccountView account, LocalDate[] period, Basis basis,
+                                        Statement previous, String reason) {
+        if (basis.summary().eligibleInPeriod() < 2) {
+            throw new InsufficientEligibleTransactionsException(basis.summary().eligibleInPeriod());
+        }
+        LocalDate today = LocalDate.now(clock);
+        int nextVersion = statements.maxVersion(account.id(), period[0], period[1]) + 1;
+        Statement statement = new Statement(UUID.randomUUID(), newReference(today), account.customerId(), account.id(),
+                account.accountNumber(), account.accountType(), period[0], period[1], account.currency());
+        statement.configureVersion(nextVersion, reason, basis.fingerprint());
         statement = statements.save(statement);
 
         try {
             CustomerView customer = customerClient.getCustomer(account.customerId());
-            Ledger ledger = ledgerCalculator.calculate(EligibilityService.toLedgerViews(ledgerEntries), period[0], period[1]);
+            Ledger ledger = ledgerCalculator.calculate(EligibilityService.toLedgerViews(basis.entries()),
+                    period[0], period[1]);
 
             LocalDateTime generatedAt = LocalDateTime.now(clock);
             StatementDocument document = new StatementDocument(
@@ -138,26 +215,33 @@ public class StatementService {
 
             statement.markGenerated(ledger.openingBalance(), ledger.closingBalance(), ledger.totalCredits(),
                     ledger.totalDebits(), key, generatedAt);
-            statement.setEligibilityCounts(summary.eligibleInPeriod(), summary.excludedInPeriod());
-            statement = statements.save(statement);
+            statement.setEligibilityCounts(basis.summary().eligibleInPeriod(), basis.summary().excludedInPeriod());
+            if (previous != null) {
+                previous.markSuperseded(statement.getId());
+                statements.saveAndFlush(previous);
+            }
+            statement.promoteToCurrent();
+            statement = statements.saveAndFlush(statement);
+            snapshots.save(statement.getId(), ledger.rows());
 
             outboxWriter.write(UUID.randomUUID(), StatementEvents.TOPIC, statement.getId().toString(),
                     StatementGeneratedEvent.EVENT_TYPE,
                     new StatementGeneratedEvent(UUID.randomUUID(), statement.getId(), statement.getStatementReference(),
                             statement.getCustomerId(), statement.getAccountId(), period[0], period[1],
                             statement.getClosingBalance(), generatedAt));
-            access.record(statement.getId(), statement.getCustomerId(), user.subject(), AccessType.GENERATED, true, null);
-            return new GenerateResult(StatementResponse.from(statement), existing.isEmpty());
+            access.record(statement.getId(), statement.getCustomerId(), user.subject(), AccessType.GENERATED, true,
+                    "version " + nextVersion + ": " + reason);
+            return new GenerateResult(StatementResponse.from(statement), true);
         } catch (IOException | RuntimeException failure) {
-            String reason = failure.getMessage() == null ? failure.getClass().getSimpleName() : failure.getMessage();
-            statement.markFailed(reason);
+            String message = failure.getMessage() == null ? failure.getClass().getSimpleName() : failure.getMessage();
+            statement.markFailedVersion(message);
             statements.save(statement);
             outboxWriter.write(UUID.randomUUID(), StatementEvents.TOPIC, statement.getId().toString(),
                     StatementGenerationFailedEvent.EVENT_TYPE,
                     new StatementGenerationFailedEvent(UUID.randomUUID(), statement.getId(), statement.getCustomerId(),
-                            statement.getAccountId(), period[0], period[1], reason, LocalDateTime.now(clock)));
-            access.record(statement.getId(), statement.getCustomerId(), user.subject(), AccessType.GENERATED, false, reason);
-            throw new StatementGenerationException(reason, failure);
+                            statement.getAccountId(), period[0], period[1], message, LocalDateTime.now(clock)));
+            access.record(statement.getId(), statement.getCustomerId(), user.subject(), AccessType.GENERATED, false, message);
+            throw new StatementGenerationException(message, failure);
         }
     }
 

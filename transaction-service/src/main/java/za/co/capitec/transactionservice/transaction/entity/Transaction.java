@@ -39,6 +39,22 @@ public class Transaction {
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "entry_kind", nullable = false, length = 30)
+    private EntryKind entryKind = EntryKind.STANDARD;
+
+    @Column(name = "idempotency_key", length = 100, updatable = false)
+    private String idempotencyKey;
+
+    @Column(name = "posted_at")
+    private LocalDateTime postedAt;
+
+    @Column(name = "synthetic_seed", nullable = false)
+    private boolean syntheticSeed;
+
+    @jakarta.persistence.Transient
+    private LocalDateTime requestedOccurredAt;
+
     protected Transaction() {
     }
 
@@ -60,7 +76,45 @@ public class Transaction {
 
     @PrePersist
     protected void onCreate() {
-        this.createdAt = LocalDateTime.now();
+        this.createdAt = requestedOccurredAt != null ? requestedOccurredAt : LocalDateTime.now();
+        if (status == TransactionStatus.COMPLETED && postedAt == null) {
+            postedAt = createdAt;
+        }
+    }
+
+    public static Transaction funding(UUID accountId, String reference, BigDecimal amount, String currency,
+                                      String description, EntryKind kind, String idempotencyKey) {
+        Transaction tx = new Transaction(accountId, reference, TransactionType.CREDIT, amount, currency, description);
+        tx.entryKind = kind;
+        tx.idempotencyKey = idempotencyKey;
+        tx.setStatus(TransactionStatus.COMPLETED);
+        return tx;
+    }
+
+    public void markSynthetic(LocalDateTime occurredAt) {
+        this.syntheticSeed = true;
+        this.requestedOccurredAt = occurredAt;
+    }
+
+    public boolean isSyntheticSeed() {
+        return syntheticSeed;
+    }
+
+    public void markPosted() {
+        this.status = TransactionStatus.COMPLETED;
+        this.postedAt = LocalDateTime.now();
+    }
+
+    public EntryKind getEntryKind() {
+        return entryKind;
+    }
+
+    public String getIdempotencyKey() {
+        return idempotencyKey;
+    }
+
+    public LocalDateTime getPostedAt() {
+        return postedAt;
     }
 
     public UUID getId() {

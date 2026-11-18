@@ -30,7 +30,7 @@ public class AccountClient {
     public Optional<AccountView> find(UUID accountId) {
         try {
             return Optional.ofNullable(restClient.get()
-                    .uri("/api/v1/accounts/{id}", accountId)
+                    .uri("/api/v1/accounts/{id}/reference", accountId)
                     .retrieve()
                     .body(AccountView.class));
         } catch (HttpClientErrorException.NotFound notFound) {

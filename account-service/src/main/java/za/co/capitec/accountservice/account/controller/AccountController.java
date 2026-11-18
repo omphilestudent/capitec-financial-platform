@@ -41,6 +41,18 @@ public class AccountController {
         return ResponseEntity.ok(accountService.getAccountById(id));
     }
 
+    @GetMapping("/{id}/reference")
+    public ResponseEntity<AccountResponse> getAccountReference(@PathVariable UUID id) {
+        return ResponseEntity.ok(accountService.getAccountReference(id));
+    }
+
+    @GetMapping("/customer/{customerId}/funded")
+    public ResponseEntity<List<AccountResponse>> getFundedAccountsByCustomer(
+            @PathVariable UUID customerId
+    ) {
+        return ResponseEntity.ok(accountService.getFundedAccountsByCustomer(customerId));
+    }
+
     @GetMapping("/customer/{customerId}")
     public ResponseEntity<List<AccountResponse>> getAccountsByCustomer(
             @PathVariable UUID customerId
