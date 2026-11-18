@@ -63,6 +63,12 @@ public class Customer {
         updatedAt = LocalDateTime.now();
     }
 
+    public void rename(String newFirstName, String newLastName) {
+        this.firstName = newFirstName;
+        this.lastName = newLastName;
+        this.updatedAt = LocalDateTime.now();
+    }
+
     public UUID getId() { return id; }
     public String getFirstName() { return firstName; }
     public String getLastName() { return lastName; }

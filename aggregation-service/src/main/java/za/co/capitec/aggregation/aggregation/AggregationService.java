@@ -6,6 +6,7 @@ import org.springframework.transaction.annotation.Transactional;
 import za.co.capitec.aggregation.common.messaging.OutboxWriter;
 import za.co.capitec.aggregation.domain.NormalizedTransaction;
 import za.co.capitec.aggregation.domain.NormalizedTransaction.Direction;
+import za.co.capitec.aggregation.domain.SourceSystem;
 import za.co.capitec.aggregation.messaging.AggregationEvents;
 import za.co.capitec.aggregation.messaging.AggregationEvents.TransactionAggregatedEvent;
 
@@ -50,6 +51,10 @@ public class AggregationService {
                 tx.direction().name(), tx.amount(), tx.currency(), tx.category().name(), tx.description(),
                 tx.status(), tx.occurredAt(), counted, LocalDateTime.now());
         if (inserted == 0) {
+            if (tx.source() == SourceSystem.TRANSACTION_SERVICE) {
+                jdbc.update("UPDATE aggregated_transactions SET status = ? WHERE source = ? AND external_id = ? AND status <> ?",
+                        tx.status(), tx.source().name(), tx.externalId(), tx.status());
+            }
             return Outcome.DUPLICATE_SOURCE;
         }
 

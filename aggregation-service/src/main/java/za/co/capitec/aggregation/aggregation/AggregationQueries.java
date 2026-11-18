@@ -124,6 +124,20 @@ public class AggregationQueries {
         return count == null ? 0 : count;
     }
 
+    public TransactionRow findTransaction(UUID id) {
+        List<TransactionRow> rows = jdbc.query(
+                "SELECT id, source, external_id, customer_id, account_id, direction, amount, currency, category, "
+                        + "status, occurred_at, counted, duplicate_of FROM aggregated_transactions WHERE id = ?",
+                (rs, n) -> new TransactionRow(
+                        rs.getObject("id", UUID.class), rs.getString("source"), rs.getString("external_id"),
+                        rs.getObject("customer_id", UUID.class), rs.getObject("account_id", UUID.class),
+                        rs.getString("direction"), rs.getBigDecimal("amount"), rs.getString("currency"),
+                        rs.getString("category"), rs.getString("status"),
+                        rs.getObject("occurred_at", LocalDateTime.class), rs.getBoolean("counted"),
+                        rs.getObject("duplicate_of", UUID.class)), id);
+        return rows.isEmpty() ? null : rows.get(0);
+    }
+
     public List<TransactionRow> listTransactions(Filter filter, int page, int size) {
         StringBuilder sql = new StringBuilder(
                 "SELECT id, source, external_id, customer_id, account_id, direction, amount, currency, category, "

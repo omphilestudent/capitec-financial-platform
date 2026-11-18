@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { AlertCircle, CheckCircle2, ChevronRight, Loader2, RefreshCw, Search, ShieldAlert } from 'lucide-react'
 import { getFraud, searchFraud, updateFraudStatus } from '../services/fraudService'
-import { getTransactionById } from '../services/transactionService'
+import { getTransactionForFraud } from '../services/transactionService'
 
 const RISK_LEVELS = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']
 const INVESTIGATION_STATUSES = ['OPEN', 'UNDER_REVIEW', 'CONFIRMED_FRAUD', 'FALSE_POSITIVE']
@@ -197,11 +197,11 @@ export function FraudRecordView({ fraudId, onBack, onOpenCase }) {
     if (!txId) return undefined
     let active = true
     setTransaction({ status: 'loading', data: null, error: '' })
-    getTransactionById(txId)
+    getTransactionForFraud(txId, state.data?.customerId)
       .then((data) => { if (active) setTransaction({ status: 'ready', data, error: '' }) })
       .catch((err) => { if (active) setTransaction({ status: 'error', data: null, error: errorMessage(err) }) })
     return () => { active = false }
-  }, [state.data?.transactionId])
+  }, [state.data?.transactionId, state.data?.customerId])
 
   const submitStatus = async () => {
     if (!nextStatus) return

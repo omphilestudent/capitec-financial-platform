@@ -186,7 +186,9 @@ public class TransactionService {
             }
         }
         tx.markPosted();
-        return TransactionResponse.from(transactionRepository.saveAndFlush(tx));
+        Transaction posted = transactionRepository.saveAndFlush(tx);
+        publishCreated(posted);
+        return TransactionResponse.from(posted);
     }
 
     private void publishCreated(Transaction savedTransaction) {

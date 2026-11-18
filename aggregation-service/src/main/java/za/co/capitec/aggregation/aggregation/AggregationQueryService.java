@@ -78,6 +78,10 @@ public class AggregationQueryService {
         return new AggregationQueries.Filter(accountId, customerId, category, direction, source, status, from, to);
     }
 
+    public AggregationQueries.TransactionRow transaction(java.util.UUID id) {
+        return queries.findTransaction(id);
+    }
+
     public long count(AggregationQueries.Filter filter) {
         return queries.countTransactions(filter);
     }
