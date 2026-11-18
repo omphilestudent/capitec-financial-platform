@@ -9,6 +9,8 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import za.co.capitec.financialplatform.account.exception.AccountNotFoundException;
+import za.co.capitec.financialplatform.account.exception.AccountStateException;
 import za.co.capitec.financialplatform.customer.exception.CustomerNotFoundException;
 import za.co.capitec.financialplatform.customer.exception.DuplicateCustomerEmailException;
 
@@ -32,6 +34,30 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(DuplicateCustomerEmailException.class)
     public ResponseEntity<ApiError> handleDuplicateEmail(
             DuplicateCustomerEmailException exception,
+            HttpServletRequest request) {
+
+        return buildResponse(
+                HttpStatus.CONFLICT,
+                exception.getMessage(),
+                request
+        );
+    }
+
+    @ExceptionHandler(AccountNotFoundException.class)
+    public ResponseEntity<ApiError> handleAccountNotFound(
+            AccountNotFoundException exception,
+            HttpServletRequest request) {
+
+        return buildResponse(
+                HttpStatus.NOT_FOUND,
+                exception.getMessage(),
+                request
+        );
+    }
+
+    @ExceptionHandler(AccountStateException.class)
+    public ResponseEntity<ApiError> handleAccountState(
+            AccountStateException exception,
             HttpServletRequest request) {
 
         return buildResponse(

@@ -1,40 +1,90 @@
-import { useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  Briefcase, Building2, Check, ChevronDown, ChevronRight, Download, FileText,
-  Pencil, Plus, Search, ShieldAlert, TrendingUp, UserRound, Wallet,
+  AlertCircle, Briefcase, Building2, CheckCircle2, ChevronDown, ChevronRight, FileText,
+  Loader2, RefreshCw, Search, ShieldAlert, UserRound, Wallet,
 } from 'lucide-react'
-import { cases, CASE_STATUS_PATH, getCase } from '../data/mockCases'
-import './Cases.css'
+import { getCase, getCaseActivity, getCases, updateCase } from '../services/caseService'
+import { getFraudForCase } from '../services/fraudService'
+import { getAccountById, getAccountsByCustomer } from '../services/accountService'
+import { getCustomerById } from '../services/customerService'
+import { getTransactionSummary, getTransactionsByAccount } from '../services/transactionService'
+import StatementsPanel from './Statements'
 
-const TODAY = '2026-11-17'
+export const CASE_STATUS_PATH = ['NEW', 'OPEN', 'IN_PROGRESS', 'PENDING', 'ESCALATED', 'RESOLVED', 'CLOSED']
 
-const money = (value) => {
-  const sign = value < 0 ? '-' : ''
-  const formatted = Math.abs(value).toLocaleString('en-ZA', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })
-  return `${sign}R ${formatted}`
+const STATUS_LABEL = {
+  NEW: 'New', OPEN: 'Open', IN_PROGRESS: 'In Progress', PENDING: 'Pending',
+  ESCALATED: 'Escalated', RESOLVED: 'Resolved', CLOSED: 'Closed',
 }
 
-const initials = (name) => name.split(' ').slice(0, 2).map((p) => p[0]).join('').toUpperCase()
+const PRIORITY_LABEL = { LOW: 'Low', MEDIUM: 'Medium', HIGH: 'High', CRITICAL: 'Critical' }
 
-/* ------------------------------------------------------------------
-   Shared Lightning pieces
------------------------------------------------------------------- */
+const PRIORITY_CLASS = { LOW: 'low', MEDIUM: 'medium', HIGH: 'high', CRITICAL: 'critical' }
+
+const ALLOWED_NEXT = {
+  NEW: ['OPEN', 'IN_PROGRESS', 'PENDING', 'ESCALATED', 'RESOLVED'],
+  OPEN: ['IN_PROGRESS', 'PENDING', 'ESCALATED', 'RESOLVED'],
+  IN_PROGRESS: ['PENDING', 'ESCALATED', 'RESOLVED'],
+  PENDING: ['IN_PROGRESS', 'ESCALATED', 'RESOLVED'],
+  ESCALATED: ['IN_PROGRESS', 'RESOLVED'],
+  RESOLVED: ['CLOSED'],
+  CLOSED: [],
+}
+
+const ACTIVITY_LABEL = {
+  CREATED: 'Case created',
+  STATUS_CHANGED: 'Status changed',
+  PRIORITY_CHANGED: 'Priority changed',
+  ASSIGNED: 'Assignment changed',
+  OWNER_CHANGED: 'Owner changed',
+  DESCRIPTION_UPDATED: 'Description updated',
+}
+
+const errorMessage = (err) => {
+  if (!err.response) return 'The API gateway cannot be reached.'
+  const data = err.response.data
+  if (data?.fieldErrors) return Object.values(data.fieldErrors).join(' ')
+  return data?.message || 'The request failed.'
+}
+
+const formatMoney = (value, currency = 'ZAR') =>
+  new Intl.NumberFormat('en-ZA', { style: 'currency', currency }).format(Number(value ?? 0))
+
+const formatDate = (value) =>
+  value ? new Date(value).toLocaleString('en-ZA', { dateStyle: 'medium', timeStyle: 'short' }) : '—'
+
+const formatDay = (value) =>
+  value ? new Date(value).toLocaleDateString('en-ZA', { dateStyle: 'medium' }) : '—'
+
+const initials = (name) => (name || '?').split(' ').slice(0, 2).map((p) => p[0]).join('').toUpperCase()
+
+function useRequest(run, deps) {
+  const [state, setState] = useState({ status: 'loading', data: null, error: '' })
+  const [version, setVersion] = useState(0)
+
+  useEffect(() => {
+    let active = true
+    setState({ status: 'loading', data: null, error: '' })
+    run()
+      .then((data) => { if (active) setState({ status: 'ready', data, error: '' }) })
+      .catch((err) => { if (active) setState({ status: 'error', data: null, error: errorMessage(err) }) })
+    return () => { active = false }
+  }, [...deps, version])
+
+  return { ...state, reload: () => setVersion((v) => v + 1) }
+}
 
 function Priority({ value }) {
-  const tone = value.toLowerCase()
   return (
-    <span className={`sf-priority ${tone}`}>
+    <span className={`sf-priority ${PRIORITY_CLASS[value] || ''}`}>
       <i aria-hidden="true" />
-      {value}
+      {PRIORITY_LABEL[value] || value}
     </span>
   )
 }
 
-function Section({ title, defaultOpen = true, children }) {
-  const [open, setOpen] = useState(defaultOpen)
+function Section({ title, children }) {
+  const [open, setOpen] = useState(true)
   return (
     <section className="sf-section">
       <button className="sf-section-head" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
@@ -46,141 +96,166 @@ function Section({ title, defaultOpen = true, children }) {
   )
 }
 
-function LongText({ text }) {
-  const [expanded, setExpanded] = useState(false)
-  const lines = text.split('\n')
-  const clipped = lines.length > 6 && !expanded
-  return (
-    <div className="sf-long">
-      <pre>{clipped ? lines.slice(0, 6).join('\n') : text}</pre>
-      {lines.length > 6 && (
-        <button className="sf-text-link" onClick={() => setExpanded((e) => !e)}>
-          {expanded ? 'Show less' : 'Show more'}
-        </button>
-      )}
-    </div>
-  )
-}
-
-function Field({ label, value, kind }) {
-  let content
-  if (kind === 'check') {
-    content = (
-      <span className={`sf-checkbox${value ? ' on' : ''}`} role="img" aria-label={`${label}: ${value ? 'checked' : 'not checked'}`}>
-        {value && <Check size={11} />}
-      </span>
-    )
-  } else if (kind === 'link' && value) {
-    content = <span className="sf-link">{value}</span>
-  } else if (kind === 'long') {
-    content = value ? <LongText text={value} /> : <span className="sf-blank" />
-  } else {
-    content = value || <span className="sf-blank" />
-  }
-
-  return (
-    <div className={`sf-field${kind === 'long' ? ' full' : ''}`}>
-      <div className="sf-field-label">{label}</div>
-      <div className="sf-field-value">{content}</div>
-      <Pencil size={13} className="sf-edit" aria-hidden="true" />
-    </div>
-  )
-}
-
 function FieldGrid({ fields }) {
   return (
     <div className="sf-fields">
-      {fields.map(([label, value, kind]) => (
-        <Field key={label} label={label} value={value} kind={kind} />
+      {fields.map(([label, value]) => (
+        <div key={label} className="sf-field">
+          <div className="sf-field-label">{label}</div>
+          <div className="sf-field-value">{value || <span className="sf-blank">—</span>}</div>
+        </div>
       ))}
     </div>
   )
 }
 
-/* ------------------------------------------------------------------
-   Case list (Cases object home)
------------------------------------------------------------------- */
+function Panel({ state, onRetry, children }) {
+  if (state.status === 'loading') {
+    return <p className="sf-muted centered"><Loader2 size={15} className="cu-spin" /> Loading…</p>
+  }
+  if (state.status === 'error') {
+    return (
+      <div className="cu-banner danger" role="alert">
+        <AlertCircle size={18} /> <span>{state.error}</span>
+        <button className="home-btn" onClick={onRetry}>Retry</button>
+      </div>
+    )
+  }
+  return children
+}
 
 export function CaseList({ onOpen }) {
   const [query, setQuery] = useState('')
+  const [status, setStatus] = useState('')
+  const [priority, setPriority] = useState('')
+  const [page, setPage] = useState(0)
+  const [term, setTerm] = useState('')
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    if (!q) return cases
-    return cases.filter((c) =>
-      [c.id, c.title, c.client, c.owner, c.status, c.priority].some((v) => v.toLowerCase().includes(q)),
-    )
-  }, [query])
+  const list = useRequest(
+    () => getCases({ q: term, status, priority, page, size: 20 }),
+    [term, status, priority, page],
+  )
+
+  const submitSearch = (event) => {
+    event.preventDefault()
+    setPage(0)
+    setTerm(query.trim())
+  }
+
+  const data = list.data
+  const count = data?.totalElements ?? 0
 
   return (
     <section className="sf-list">
       <div className="sf-list-head">
         <div>
           <span className="sf-kicker">Cases</span>
-          <h1>All Open Cases</h1>
-          <span className="sf-muted">{filtered.length} item{filtered.length === 1 ? '' : 's'} • Sorted by Case Number</span>
+          <h1>All Cases</h1>
+          <span className="sf-muted">
+            {data ? `${count} item${count === 1 ? '' : 's'} • Newest first` : 'Loading…'}
+          </span>
         </div>
-        <label className="sf-search">
-          <Search size={15} aria-hidden="true" />
-          <input
-            type="search"
-            placeholder="Search this list..."
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            aria-label="Search cases"
-          />
-        </label>
+        <div className="sf-list-tools">
+          <form className="sf-search-form" onSubmit={submitSearch} role="search">
+            <label className="sf-search">
+              <Search size={15} aria-hidden="true" />
+              <input
+                type="search"
+                placeholder="Search case number, subject or customer ID"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                aria-label="Search cases"
+              />
+            </label>
+          </form>
+          <select value={status} onChange={(e) => { setPage(0); setStatus(e.target.value) }} aria-label="Filter by status">
+            <option value="">All statuses</option>
+            {CASE_STATUS_PATH.map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
+          </select>
+          <select value={priority} onChange={(e) => { setPage(0); setPriority(e.target.value) }} aria-label="Filter by priority">
+            <option value="">All priorities</option>
+            {Object.keys(PRIORITY_LABEL).map((p) => <option key={p} value={p}>{PRIORITY_LABEL[p]}</option>)}
+          </select>
+          <button className="sf-pill-btn" onClick={list.reload} aria-label="Refresh cases">
+            <RefreshCw size={14} /> Refresh
+          </button>
+        </div>
       </div>
 
-      <div className="sf-card sf-table-wrap">
-        <table className="sf-table">
-          <thead>
-            <tr>
-              <th className="narrow"><input type="checkbox" aria-label="Select all cases" /></th>
-              <th>Case Number</th>
-              <th>Subject</th>
-              <th>Client Name</th>
-              <th>Priority</th>
-              <th>Status</th>
-              <th>Case Owner</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((c) => (
-              <tr key={c.id}>
-                <td className="narrow"><input type="checkbox" aria-label={`Select case ${c.id}`} /></td>
-                <td><button className="sf-link-button" onClick={() => onOpen(c.id)}>{c.id}</button></td>
-                <td>{c.title}</td>
-                <td>{c.client}</td>
-                <td><Priority value={c.priority} /></td>
-                <td>{c.status}</td>
-                <td>{c.owner}</td>
+      <Panel state={list} onRetry={list.reload}>
+        <div className="sf-card sf-table-wrap">
+          <table className="sf-table">
+            <thead>
+              <tr>
+                <th>Case Number</th>
+                <th>Subject</th>
+                <th>Priority</th>
+                <th>Status</th>
+                <th>Owner</th>
+                <th>Created</th>
               </tr>
-            ))}
-            {filtered.length === 0 && (
-              <tr><td colSpan={7} className="sf-empty">No cases match “{query}”.</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {data?.content.length === 0 && (
+                <tr><td colSpan={6} className="sf-empty">No cases match these filters.</td></tr>
+              )}
+              {data?.content.map((c) => (
+                <tr key={c.id}>
+                  <td><button className="sf-link-button" onClick={() => onOpen(c.id)}>{c.caseNumber}</button></td>
+                  <td>{c.subject}</td>
+                  <td><Priority value={c.priority} /></td>
+                  <td>{STATUS_LABEL[c.status] || c.status}</td>
+                  <td>{c.owner || '—'}</td>
+                  <td>{formatDate(c.createdAt)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {data && data.totalPages > 1 && (
+          <div className="home-actions">
+            <button className="sf-btn outline" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>Previous</button>
+            <span className="sf-muted">Page {page + 1} of {data.totalPages}</span>
+            <button className="sf-btn outline" disabled={page + 1 >= data.totalPages} onClick={() => setPage((p) => p + 1)}>Next</button>
+          </div>
+        )}
+      </Panel>
     </section>
   )
 }
 
-/* ------------------------------------------------------------------
-   Case record
------------------------------------------------------------------- */
-
-const CASE_TABS = [
-  { key: 'details', label: 'Details' },
-  { key: 'transactions', label: 'Transaction History' },
-  { key: 'fraud', label: 'Fraud Monitoring' },
-  { key: 'statements', label: 'Statements' },
-]
-
-export function CaseRecord({ caseItem, onOpenFraud }) {
+export function CaseRecord({ caseId, onBack, onOpenFraud, onOpenCustomer }) {
   const [tab, setTab] = useState('details')
-  const closed = caseItem.status === 'Closed'
+  const caseRequest = useRequest(() => getCase(caseId), [caseId])
+  const activity = useRequest(() => getCaseActivity(caseId), [caseId])
+  const fraud = useRequest(() => getFraudForCase(caseId), [caseId])
+  const caseData = caseRequest.data
+
+  const accountRequest = useRequest(
+    () => (caseData?.accountId ? getAccountById(caseData.accountId) : Promise.resolve(null)),
+    [caseData?.accountId],
+  )
+  const customerRequest = useRequest(
+    () => (caseData?.customerId ? getCustomerById(caseData.customerId) : Promise.resolve(null)),
+    [caseData?.customerId],
+  )
+
+  const reloadAll = () => {
+    caseRequest.reload()
+    activity.reload()
+    fraud.reload()
+  }
+
+  if (caseRequest.status !== 'ready') {
+    return (
+      <section className="sf-record">
+        <button className="sf-pill-btn" onClick={onBack}>Back to cases</button>
+        <Panel state={caseRequest} onRetry={caseRequest.reload}>{null}</Panel>
+      </section>
+    )
+  }
+
+  const closed = caseData.status === 'CLOSED'
 
   return (
     <div className="sf-record">
@@ -189,341 +264,572 @@ export function CaseRecord({ caseItem, onOpenFraud }) {
           <div className="sf-title">
             <span className="sf-icon case" aria-hidden="true"><Briefcase size={20} /></span>
             <div>
-              <span className="sf-kicker">Case</span>
-              <h1>{caseItem.title}</h1>
+              <span className="sf-kicker">Case · {caseData.caseNumber}</span>
+              <h1>{caseData.subject}</h1>
             </div>
           </div>
-
           <div className="sf-actions">
-            <button className="sf-pill-btn"><Plus size={14} /> Follow</button>
-            <button className="sf-pill-btn">Edit</button>
-            <button className="sf-pill-btn">Change Owner</button>
-            <button className="sf-pill-btn">Accept</button>
-            <button className="sf-pill-btn">View Case Hierarchy</button>
-            <button className="sf-pill-btn">Send Email</button>
+            <button className="sf-pill-btn" onClick={onBack}>Back to cases</button>
+            <button className="sf-pill-btn" onClick={reloadAll}><RefreshCw size={14} /> Refresh</button>
           </div>
         </div>
 
         <dl className="sf-highlights">
-          <div><dt>Priority</dt><dd>{caseItem.priority}</dd></div>
-          <div><dt>Status</dt><dd>{caseItem.status}</dd></div>
-          <div><dt>Case Number</dt><dd>{caseItem.id}</dd></div>
+          <div><dt>Priority</dt><dd><Priority value={caseData.priority} /></dd></div>
+          <div><dt>Status</dt><dd>{STATUS_LABEL[caseData.status] || caseData.status}</dd></div>
+          <div><dt>Case Number</dt><dd>{caseData.caseNumber}</dd></div>
+          <div><dt>Owner</dt><dd>{caseData.owner || '—'}</dd></div>
+          <div><dt>Investigator</dt><dd>{caseData.assignedInvestigator || 'Unassigned'}</dd></div>
         </dl>
 
         <div className="sf-path-row">
           <ol className="sf-path" aria-label="Case status">
             {CASE_STATUS_PATH.map((step) => {
-              const current = step === caseItem.status
+              const current = step === caseData.status
               return (
                 <li
                   key={step}
                   className={current ? (closed ? 'current closed' : 'current') : ''}
                   aria-current={current ? 'step' : undefined}
                 >
-                  {step}
+                  {STATUS_LABEL[step]}
                 </li>
               )
             })}
           </ol>
-          <button className="sf-btn primary sf-path-complete" disabled={closed}>
-            <Check size={14} /> Mark Status as Complete
-          </button>
         </div>
       </header>
 
       <div className="sf-body">
         <div className="sf-card sf-main">
           <div className="sf-tabs" role="tablist">
-            {CASE_TABS.map((t) => (
+            {[
+              ['details', 'Details'],
+              ['transactions', 'Transaction History'],
+              ['fraud', `Fraud Monitoring (${fraud.data?.length ?? 0})`],
+              ['statements', 'Statements'],
+            ].map(([key, label]) => (
               <button
-                key={t.key}
+                key={key}
                 role="tab"
-                aria-selected={tab === t.key}
-                className={tab === t.key ? 'active' : ''}
-                onClick={() => setTab(t.key)}
+                aria-selected={tab === key}
+                className={tab === key ? 'active' : ''}
+                onClick={() => setTab(key)}
               >
-                {t.label}
+                {label}
               </button>
             ))}
           </div>
 
           <div className="sf-tabpanel" role="tabpanel">
-            {tab === 'details' && <CaseDetails caseItem={caseItem} onOpenFraud={onOpenFraud} />}
-            {tab === 'transactions' && <TransactionHistory caseItem={caseItem} />}
-            {tab === 'fraud' && <FraudMonitoring caseItem={caseItem} onOpenFraud={onOpenFraud} />}
-            {tab === 'statements' && <Statements caseItem={caseItem} />}
+            {tab === 'details' && (
+              <CaseDetails caseData={caseData} onSaved={reloadAll} closed={closed} />
+            )}
+            {tab === 'transactions' && (
+              <Panel state={accountRequest} onRetry={accountRequest.reload}>
+                {accountRequest.data
+                  ? <TransactionHistory customerId={caseData.customerId} caseAccount={accountRequest.data} fraudRecords={fraud.data || []} />
+                  : <p className="sf-muted centered">This case is not linked to an account.</p>}
+              </Panel>
+            )}
+            {tab === 'fraud' && (
+              <Panel state={fraud} onRetry={fraud.reload}>
+                <FraudMonitoring records={fraud.data || []} onOpenFraud={onOpenFraud} />
+              </Panel>
+            )}
+            {tab === 'statements' && (
+              <StatementsPanel customerId={caseData.customerId} caseAccount={accountRequest.data} />
+            )}
           </div>
         </div>
 
         <aside className="sf-side">
-          {caseItem.sidebar === 'risk' ? <ClientHealth caseItem={caseItem} /> : <SlaCard caseItem={caseItem} />}
-          {caseItem.disputes && <DisputesCard disputes={caseItem.disputes} />}
           <div className="sf-card sf-side-card">
-            <h2>Case Comments ({0})</h2>
-            <p className="sf-muted">No comments yet.</p>
+            <h2><UserRound size={16} /> Customer</h2>
+            <Panel state={customerRequest} onRetry={customerRequest.reload}>
+              {customerRequest.data ? (
+                <div className="sf-related-list">
+                  <button className="sf-related-row" onClick={() => onOpenCustomer(customerRequest.data.id)}>
+                    <span className="sf-avatar">{initials(`${customerRequest.data.firstName} ${customerRequest.data.lastName}`)}</span>
+                    <span className="acc-row-body">
+                      <span className="acc-row-title">{customerRequest.data.firstName} {customerRequest.data.lastName}</span>
+                      <span className="acc-row-meta">{customerRequest.data.email}</span>
+                    </span>
+                    <ChevronRight size={15} aria-hidden="true" />
+                  </button>
+                </div>
+              ) : <p className="sf-muted">No customer is linked to this case.</p>}
+            </Panel>
           </div>
+
           <div className="sf-card sf-side-card">
-            <h2>Related Cases (0)</h2>
+            <h2><Wallet size={16} /> Account</h2>
+            <Panel state={accountRequest} onRetry={accountRequest.reload}>
+              {accountRequest.data ? (
+                <dl className="sf-highlights stacked">
+                  <div><dt>Account Number</dt><dd>{accountRequest.data.accountNumber}</dd></div>
+                  <div><dt>Type</dt><dd>{accountRequest.data.accountType}</dd></div>
+                  <div><dt>Status</dt><dd>{accountRequest.data.status}</dd></div>
+                  <div><dt>Balance</dt><dd>{formatMoney(accountRequest.data.balance, accountRequest.data.currency)}</dd></div>
+                </dl>
+              ) : <p className="sf-muted">No account is linked to this case.</p>}
+            </Panel>
           </div>
-          <FeedCard items={caseItem.feed} />
+
+          <div className="sf-card sf-side-card">
+            <h2><ShieldAlert size={16} /> Activity</h2>
+            <Panel state={activity} onRetry={activity.reload}>
+              {activity.data?.length === 0 && <p className="sf-muted">No activity recorded.</p>}
+              <ul className="home-list">
+                {[...(activity.data || [])].reverse().map((a) => (
+                  <li key={a.id}>
+                    <div className="home-list-main">
+                      <strong>{ACTIVITY_LABEL[a.activityType] || a.activityType}</strong>
+                      <span className="home-muted">{a.description}</span>
+                      <span className="home-muted">{a.actor} · {formatDate(a.createdAt)}</span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </Panel>
+          </div>
         </aside>
       </div>
     </div>
   )
 }
 
-function CaseDetails({ caseItem, onOpenFraud }) {
+function CaseDetails({ caseData, onSaved, closed }) {
+  const allowed = ALLOWED_NEXT[caseData.status] || []
+  const [form, setForm] = useState({
+    status: caseData.status,
+    priority: caseData.priority,
+    assignedInvestigator: caseData.assignedInvestigator || '',
+    owner: caseData.owner || '',
+    resolutionDetails: caseData.resolutionDetails || '',
+  })
+  const [saving, setSaving] = useState(false)
+  const [notice, setNotice] = useState(null)
+
+  useEffect(() => {
+    setForm({
+      status: caseData.status,
+      priority: caseData.priority,
+      assignedInvestigator: caseData.assignedInvestigator || '',
+      owner: caseData.owner || '',
+      resolutionDetails: caseData.resolutionDetails || '',
+    })
+  }, [caseData])
+
+  const submit = async (event) => {
+    event.preventDefault()
+    setSaving(true)
+    setNotice(null)
+    const changes = {}
+    if (form.status !== caseData.status) changes.status = form.status
+    if (form.priority !== caseData.priority) changes.priority = form.priority
+    if (form.assignedInvestigator.trim() !== (caseData.assignedInvestigator || '')) {
+      changes.assignedInvestigator = form.assignedInvestigator.trim()
+    }
+    if (form.owner.trim() !== (caseData.owner || '')) changes.owner = form.owner.trim()
+    if (form.resolutionDetails.trim() && form.resolutionDetails.trim() !== (caseData.resolutionDetails || '')) {
+      changes.resolutionDetails = form.resolutionDetails.trim()
+    }
+    if (Object.keys(changes).length === 0) {
+      setNotice({ tone: 'danger', text: 'Nothing has changed.' })
+      setSaving(false)
+      return
+    }
+    try {
+      await updateCase(caseData.id, changes)
+      setNotice({ tone: 'success', text: 'Case updated.' })
+      onSaved()
+    } catch (err) {
+      setNotice({ tone: 'danger', text: errorMessage(err) })
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
     <>
-      {caseItem.sections.map((s) => (
-        <Section key={s.title} title={s.title} defaultOpen>
-          <FieldGrid fields={s.fields} />
-        </Section>
-      ))}
-
-      {caseItem.frauds.length > 0 && (
-        <Section title={`Fraud (${caseItem.frauds.length})`} defaultOpen>
-          <RelatedFraudTable frauds={caseItem.frauds} onOpenFraud={onOpenFraud} />
-        </Section>
-      )}
-    </>
-  )
-}
-
-function ClientHealth({ caseItem }) {
-  return (
-    <div className="sf-card sf-side-card">
-      <h2><UserRound size={16} /> Client Profile</h2>
-      <div className="sf-flag-row">
-        <div>
-          <span className="sf-flag-title">KYC</span>
-          <span className="sf-muted">Last review</span>
+      <Section title="Case Information">
+        <FieldGrid fields={[
+          ['Case Number', caseData.caseNumber],
+          ['Subject', caseData.subject],
+          ['Status', STATUS_LABEL[caseData.status] || caseData.status],
+          ['Priority', PRIORITY_LABEL[caseData.priority] || caseData.priority],
+          ['Case Type', caseData.caseType.replace(/_/g, ' ')],
+          ['Origin', caseData.origin.replace(/_/g, ' ')],
+          ['Created', formatDate(caseData.createdAt)],
+          ['Last Modified', formatDate(caseData.updatedAt)],
+          ['Closed', formatDate(caseData.closedAt)],
+          ['Source Fraud ID', caseData.sourceFraudId],
+        ]} />
+        <div className="sf-long-block">
+          <span className="sf-field-label">Description</span>
+          <p>{caseData.description || 'No description.'}</p>
         </div>
-        <strong>Last KYC: {caseItem.lastKyc}</strong>
-      </div>
-      <div className="sf-flag-row">
-        <div>
-          <span className="sf-flag-title">Risk Grading</span>
-          <span className="sf-muted">Risk Grading flag</span>
-        </div>
-        <strong>{caseItem.riskGrading}</strong>
-      </div>
-    </div>
-  )
-}
+      </Section>
 
-function SlaCard({ caseItem }) {
-  const closed = caseItem.status === 'Closed'
-  return (
-    <div className="sf-card sf-sla">
-      <div className="sf-sla-top">
-        <span className="sf-kicker upper">Service Level</span>
-        <span className={`sf-sla-badge${closed ? ' closed' : ''}`}>
-          <i aria-hidden="true" /> {closed ? 'Case Closed' : 'SLA Active'}
-        </span>
-      </div>
-      <h2>5 Day SLA</h2>
-      <div className="sf-sla-empty">
-        <strong>SLA Not Started</strong>
-        <span className="sf-muted">This case has not reached the first stage yet.</span>
-      </div>
-    </div>
-  )
-}
+      <Section title="Ownership and Investigation">
+        <FieldGrid fields={[
+          ['Owner', caseData.owner],
+          ['Assigned Investigator', caseData.assignedInvestigator],
+          ['Resolution Details', caseData.resolutionDetails],
+        ]} />
+      </Section>
 
-function DisputesCard({ disputes }) {
-  return (
-    <div className="sf-card sf-side-card">
-      <h2><Wallet size={16} className="sf-warn" /> Disputes ({disputes.length})</h2>
-      <ul className="sf-disputes">
-        {disputes.map((d) => (
-          <li key={d.id}>
-            <span className="sf-link">{d.id}</span>
-            <dl>
-              <div><dt>Trace Number</dt><dd>{d.trace}</dd></div>
-              <div><dt>Disputed Amount</dt><dd>{d.amount}</dd></div>
-              <div><dt>Transaction Date</dt><dd>{d.date}</dd></div>
-            </dl>
-          </li>
-        ))}
-      </ul>
-    </div>
-  )
-}
-
-function FeedCard({ items }) {
-  const [query, setQuery] = useState('')
-  const visible = items.filter((i) =>
-    [i.who, i.text, i.detail || ''].some((v) => v.toLowerCase().includes(query.trim().toLowerCase())),
-  )
-
-  return (
-    <div className="sf-card sf-feed">
-      <div className="sf-feed-tabs">
-        <button className="active">Feed</button>
-      </div>
-      <div className="sf-post">
-        <span className="sf-post-tab">Post</span>
-        <div className="sf-post-box">Share an update...</div>
-      </div>
-      <div className="sf-feed-filter">
-        <span>Most Recent Activity <ChevronDown size={13} /></span>
-        <label className="sf-search small">
-          <Search size={13} aria-hidden="true" />
-          <input
-            type="search"
-            placeholder="Search this feed..."
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            aria-label="Search this feed"
-          />
-        </label>
-      </div>
-      <ul className="sf-feed-items">
-        {visible.map((item) => (
-          <li key={`${item.who}-${item.when}-${item.text}`}>
-            <span className="sf-avatar">{initials(item.who)}</span>
-            <div>
-              <strong className="sf-link">{item.who}</strong>
-              <span className="sf-muted sf-when">{item.when}</span>
-              <div className="sf-feed-event"><TrendingUp size={12} /> {item.text}</div>
-              {item.detail && <div className="sf-muted">{item.detail}</div>}
+      <Section title="Update Case">
+        {closed ? (
+          <p className="sf-muted">This case is closed and can no longer be changed.</p>
+        ) : (
+          <form className="acc-form" onSubmit={submit} aria-busy={saving}>
+            {notice && (
+              <div className={`cu-banner ${notice.tone}`} role={notice.tone === 'danger' ? 'alert' : 'status'}>
+                {notice.tone === 'danger' ? <AlertCircle size={18} /> : <CheckCircle2 size={18} />}
+                <span>{notice.text}</span>
+              </div>
+            )}
+            <div className="acc-form-grid">
+              <div className="acc-field">
+                <label htmlFor="case-status">Status</label>
+                <select
+                  id="case-status"
+                  value={form.status}
+                  disabled={saving}
+                  onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
+                >
+                  <option value={caseData.status}>{STATUS_LABEL[caseData.status]} (current)</option>
+                  {allowed.map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
+                </select>
+              </div>
+              <div className="acc-field">
+                <label htmlFor="case-priority">Priority</label>
+                <select
+                  id="case-priority"
+                  value={form.priority}
+                  disabled={saving}
+                  onChange={(e) => setForm((f) => ({ ...f, priority: e.target.value }))}
+                >
+                  {Object.keys(PRIORITY_LABEL).map((p) => <option key={p} value={p}>{PRIORITY_LABEL[p]}</option>)}
+                </select>
+              </div>
+              <div className="acc-field">
+                <label htmlFor="case-investigator">Assigned investigator</label>
+                <input
+                  id="case-investigator"
+                  maxLength={100}
+                  value={form.assignedInvestigator}
+                  disabled={saving}
+                  onChange={(e) => setForm((f) => ({ ...f, assignedInvestigator: e.target.value }))}
+                />
+              </div>
+              <div className="acc-field">
+                <label htmlFor="case-owner">Owner</label>
+                <input
+                  id="case-owner"
+                  maxLength={100}
+                  value={form.owner}
+                  disabled={saving}
+                  onChange={(e) => setForm((f) => ({ ...f, owner: e.target.value }))}
+                />
+              </div>
             </div>
-          </li>
-        ))}
-        {visible.length === 0 && <li className="sf-muted">No activity matches “{query}”.</li>}
-      </ul>
-    </div>
-  )
-}
-
-function RelatedFraudTable({ frauds, onOpenFraud }) {
-  return (
-    <div className="sf-table-wrap inset">
-      <table className="sf-table">
-        <thead>
-          <tr>
-            <th>Fraud Name</th>
-            <th>Rule Name</th>
-            <th className="num">Amount</th>
-            <th>Priority</th>
-          </tr>
-        </thead>
-        <tbody>
-          {frauds.map((f) => (
-            <tr key={f.id}>
-              <td><button className="sf-link-button" onClick={() => onOpenFraud(f.id)}>{f.id}</button></td>
-              <td className="clip">{f.rule}</td>
-              <td className="num debit">{money(f.amount)}</td>
-              <td><Priority value={f.priority} /></td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  )
-}
-
-function FraudMonitoring({ caseItem, onOpenFraud }) {
-  if (caseItem.frauds.length === 0) {
-    return <p className="sf-muted centered">No fraud monitoring records are linked to this case.</p>
-  }
-  return (
-    <>
-      <div className="sf-tab-heading">
-        <ShieldAlert size={16} /> Fraud monitoring ({caseItem.frauds.length})
-      </div>
-      <RelatedFraudTable frauds={caseItem.frauds} onOpenFraud={onOpenFraud} />
+            <div className="acc-field">
+              <label htmlFor="case-resolution">Resolution details (required to resolve or close)</label>
+              <textarea
+                id="case-resolution"
+                rows={3}
+                maxLength={5000}
+                value={form.resolutionDetails}
+                disabled={saving}
+                onChange={(e) => setForm((f) => ({ ...f, resolutionDetails: e.target.value }))}
+              />
+            </div>
+            <div className="acc-form-actions">
+              <button type="submit" className="sf-btn primary" disabled={saving}>
+                {saving ? <Loader2 size={15} className="cu-spin" /> : null}
+                {saving ? 'Saving…' : 'Save changes'}
+              </button>
+            </div>
+          </form>
+        )}
+      </Section>
     </>
   )
 }
 
-function TransactionHistory({ caseItem }) {
-  const [range, setRange] = useState('all')
-  const [from, setFrom] = useState('2024-10-01')
-  const [to, setTo] = useState(TODAY)
-  const [money2, setMoney2] = useState('BOTH')
-  const [classification, setClassification] = useState('ALL')
-  const [loaded, setLoaded] = useState(false)
+const ACCOUNT_TYPE_LABEL = { SAVINGS: 'Savings', CHEQUE: 'Cheque', CREDIT: 'Credit' }
 
-  const applyPreset = (days, key) => {
-    const end = new Date(`${TODAY}T00:00:00`)
-    const start = new Date(end)
-    start.setDate(end.getDate() - days)
-    setRange(key)
-    setFrom(start.toISOString().slice(0, 10))
-    setTo(TODAY)
+const DATE_PRESETS = [
+  { key: '7', label: 'Last 7 Days', days: 7 },
+  { key: '30', label: 'Last 30 Days', days: 30 },
+  { key: '90', label: 'Last 90 Days', days: 90 },
+  { key: 'all', label: 'All Dates' },
+]
+
+const isoDay = (date) => {
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+const addDays = (iso, n) => {
+  const [y, m, d] = iso.split('-').map(Number)
+  return isoDay(new Date(y, m - 1, d + n))
+}
+const inclusiveSpan = (from, to) => Math.round((Date.parse(to) - Date.parse(from)) / 86400000) + 1
+
+function TransactionHistory({ customerId, caseAccount, fraudRecords }) {
+  const today = useMemo(() => isoDay(new Date()), [])
+
+  const accounts = useRequest(
+    () => (customerId ? getAccountsByCustomer(customerId) : Promise.resolve([])),
+    [customerId],
+  )
+  const accountList = useMemo(() => {
+    const list = [...(accounts.data || [])]
+    if (caseAccount && !list.some((a) => a.id === caseAccount.id)) list.unshift(caseAccount)
+    return list
+  }, [accounts.data, caseAccount])
+  const accountTypes = useMemo(
+    () => [...new Set(accountList.map((a) => a.accountType))],
+    [accountList],
+  )
+
+  const [accountType, setAccountType] = useState('ALL')
+  const visibleAccounts = accountList.filter((a) => accountType === 'ALL' || a.accountType === accountType)
+  const [selectedAccountId, setSelectedAccountId] = useState(caseAccount?.id ?? null)
+  const selectedAccount = visibleAccounts.find((a) => a.id === selectedAccountId) ?? visibleAccounts[0] ?? null
+
+  const [preset, setPreset] = useState('30')
+  const [from, setFrom] = useState(addDays(today, -29))
+  const [to, setTo] = useState(today)
+  const [moneyType, setMoneyType] = useState('ALL')
+  const [openRow, setOpenRow] = useState(null)
+
+  const [applied, setApplied] = useState(null)
+  const [result, setResult] = useState({ status: 'idle', rows: [], summary: null, error: '' })
+  const requestSeq = useRef(0)
+
+  const fraudByTransaction = useMemo(
+    () => new Map(fraudRecords.map((f) => [f.transactionId, f])),
+    [fraudRecords],
+  )
+
+  const rangeInvalid = Boolean(from && to && from > to)
+
+  const runQuery = (criteria) => {
+    if (!criteria.accountId) return
+    const seq = ++requestSeq.current
+    setApplied(criteria)
+    setOpenRow(null)
+    setResult({ status: 'loading', rows: [], summary: null, error: '' })
+    const filter = { from: criteria.from, to: criteria.to, type: criteria.type }
+    Promise.all([
+      getTransactionsByAccount(criteria.accountId, filter),
+      getTransactionSummary(criteria.accountId, filter),
+    ])
+      .then(([rows, summary]) => {
+        if (seq === requestSeq.current) setResult({ status: 'ready', rows, summary, error: '' })
+      })
+      .catch((err) => {
+        if (seq === requestSeq.current) setResult({ status: 'error', rows: [], summary: null, error: errorMessage(err) })
+      })
   }
 
-  const results = useMemo(() => caseItem.transactions.filter((t) => {
-    if (t.date < from || t.date > to) return false
-    if (money2 !== 'BOTH' && t.money !== money2) return false
-    if (classification !== 'ALL' && t.classification !== classification) return false
-    return true
-  }), [caseItem, from, to, money2, classification])
+  const currentCriteria = (overrides = {}) => ({
+    accountId: selectedAccount?.id,
+    accountNumber: selectedAccount?.accountNumber,
+    from,
+    to,
+    type: moneyType,
+    ...overrides,
+  })
 
-  const classifications = [...new Set(caseItem.transactions.map((t) => t.classification))]
+  const applyPreset = (option) => {
+    setPreset(option.key)
+    if (option.key === 'all') {
+      setFrom('')
+      setTo('')
+    } else {
+      setFrom(addDays(today, -(option.days - 1)))
+      setTo(today)
+    }
+  }
+
+  const editDate = (setter) => (e) => {
+    setPreset('custom')
+    setter(e.target.value)
+  }
+
+  const shiftPeriod = (direction) => {
+    if (!from || !to) return
+    const span = inclusiveSpan(from, to)
+    const nextFrom = addDays(from, direction * span)
+    const nextTo = addDays(to, direction * span)
+    setPreset('custom')
+    setFrom(nextFrom)
+    setTo(nextTo)
+    runQuery(currentCriteria({ from: nextFrom, to: nextTo }))
+  }
+
+  const canShiftForward = Boolean(to) && to < today
 
   return (
     <div className="txn">
-      <div className="txn-subtab">Transaction History</div>
+      <div className="txn-subtab">Transaction History · Account {selectedAccount?.accountNumber || '—'}</div>
 
-      <div className="txn-filters">
-        <div className="txn-field">
-          <span>Select</span>
-          <div className="sf-segmented">
-            <button className={range === '7' ? 'active' : ''} onClick={() => applyPreset(7, '7')}>Last 7 Days</button>
-            <button className={range === '30' ? 'active' : ''} onClick={() => applyPreset(30, '30')}>Last 30 Days</button>
+      <Panel state={accounts} onRetry={accounts.reload}>
+        <div className="txn-filters">
+          <div className="txn-field">
+            <span>Select</span>
+            <div className="sf-segmented">
+              {DATE_PRESETS.map((option) => (
+                <button
+                  key={option.key}
+                  className={preset === option.key ? 'active' : ''}
+                  onClick={() => applyPreset(option)}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <label className="txn-field">
+            <span>From Date</span>
+            <input type="date" value={from} max={to || undefined} onChange={editDate(setFrom)} />
+          </label>
+          <label className="txn-field">
+            <span>To Date</span>
+            <input type="date" value={to} min={from || undefined} max={today} onChange={editDate(setTo)} />
+          </label>
+          <label className="txn-field">
+            <span>Account Type</span>
+            <select
+              value={accountType}
+              onChange={(e) => setAccountType(e.target.value)}
+              disabled={accountList.length === 0}
+            >
+              <option value="ALL">All account types</option>
+              {accountTypes.map((t) => (
+                <option key={t} value={t}>{ACCOUNT_TYPE_LABEL[t] || t}</option>
+              ))}
+            </select>
+          </label>
+          <label className="txn-field">
+            <span>Account Number</span>
+            <select
+              value={selectedAccount?.id ?? ''}
+              onChange={(e) => setSelectedAccountId(e.target.value)}
+              disabled={visibleAccounts.length === 0}
+            >
+              {visibleAccounts.length === 0 && <option value="">No accounts</option>}
+              {visibleAccounts.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.accountNumber} · {ACCOUNT_TYPE_LABEL[a.accountType] || a.accountType}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="txn-field">
+            <span>Money Type</span>
+            <select value={moneyType} onChange={(e) => setMoneyType(e.target.value)}>
+              <option value="ALL">ALL</option>
+              <option value="CREDIT">CREDIT</option>
+              <option value="DEBIT">DEBIT</option>
+            </select>
+          </label>
+        </div>
+
+        {rangeInvalid && (
+          <p className="cu-banner danger txn-range-error" role="alert">
+            <AlertCircle size={18} /> <span>The From Date must be on or before the To Date.</span>
+          </p>
+        )}
+
+        <div className="txn-account-card">
+          <div className="txn-account-title">
+            <span className="sf-icon account" aria-hidden="true"><Building2 size={18} /></span>
+            <div>
+              <strong>Account</strong>
+              <span>
+                {selectedAccount
+                  ? `${selectedAccount.accountNumber} · ${ACCOUNT_TYPE_LABEL[selectedAccount.accountType] || selectedAccount.accountType}`
+                  : 'No account selected'}
+              </span>
+            </div>
+          </div>
+          <div className="txn-account-actions">
+            <button
+              className="sf-btn primary"
+              disabled={!selectedAccount || rangeInvalid}
+              onClick={() => runQuery(currentCriteria())}
+            >
+              Get Transactions
+            </button>
+            <button className="sf-btn outline" disabled title="Dispute workflow not connected yet">Dispute Transaction</button>
           </div>
         </div>
-        <label className="txn-field">
-          <span>From Date</span>
-          <input type="date" value={from} onChange={(e) => { setRange('all'); setFrom(e.target.value) }} />
-        </label>
-        <label className="txn-field">
-          <span>To Date</span>
-          <input type="date" value={to} onChange={(e) => { setRange('all'); setTo(e.target.value) }} />
-        </label>
-        <label className="txn-field">
-          <span>Account Number</span>
-          <select value={caseItem.accountNumber} onChange={() => {}}>
-            <option>{caseItem.accountNumber}</option>
-          </select>
-        </label>
-        <label className="txn-field">
-          <span>Money Type</span>
-          <select value={money2} onChange={(e) => setMoney2(e.target.value)}>
-            <option value="BOTH">BOTH</option>
-            <option value="CREDIT">CREDIT</option>
-            <option value="DEBIT">DEBIT</option>
-          </select>
-        </label>
-        <label className="txn-field">
-          <span>Classification Type</span>
-          <select value={classification} onChange={(e) => setClassification(e.target.value)}>
-            <option value="ALL">ALL</option>
-            {classifications.map((c) => <option key={c} value={c}>{c}</option>)}
-          </select>
-        </label>
-      </div>
 
-      <div className="txn-account-card">
-        <div className="txn-account-title">
-          <span className="sf-icon account" aria-hidden="true"><Building2 size={18} /></span>
-          <div>
-            <strong>Account</strong>
-            <span>Transaction History</span>
+        {applied && (
+          <div className="txn-period">
+            <button
+              className="sf-btn outline"
+              disabled={!from || !to || result.status === 'loading'}
+              onClick={() => shiftPeriod(-1)}
+            >
+              ‹ Earlier period
+            </button>
+            <span className="sf-muted">
+              {from && to ? `${from} to ${to}` : 'All dates'}
+            </span>
+            <button
+              className="sf-btn outline"
+              disabled={!canShiftForward || result.status === 'loading'}
+              onClick={() => shiftPeriod(1)}
+            >
+              Later period ›
+            </button>
           </div>
-        </div>
-        <div className="txn-account-actions">
-          <button className="sf-btn primary" onClick={() => setLoaded(true)}>Get Transactions</button>
-          <button className="sf-btn outline" disabled title="Dispute workflow not connected yet">Dispute Transaction</button>
-        </div>
+        )}
+
+        {!applied ? (
+          <p className="sf-muted centered">No transactions to display. Click <strong>Get Transactions</strong> to load results.</p>
+        ) : result.status === 'loading' ? (
+          <p className="sf-muted centered"><Loader2 size={15} className="cu-spin" /> Loading transactions…</p>
+        ) : result.status === 'error' ? (
+          <div className="cu-banner danger" role="alert">
+            <AlertCircle size={18} /> <span>{result.error}</span>
+            <button className="home-btn" onClick={() => runQuery(applied)}>Retry</button>
+          </div>
+        ) : (
+          <TransactionResults
+            criteria={applied}
+            rows={result.rows}
+            summary={result.summary}
+            fraudByTransaction={fraudByTransaction}
+            openRow={openRow}
+            onToggle={(id) => setOpenRow((current) => (current === id ? null : id))}
+          />
+        )}
+      </Panel>
+    </div>
+  )
+}
+
+function TransactionResults({ criteria, rows, summary, fraudByTransaction, openRow, onToggle }) {
+  return (
+    <>
+      <div className="txn-totals" aria-label="Totals for the selected filters">
+        <div><span>Transactions</span><strong>{summary?.transactionCount ?? rows.length}</strong></div>
+        <div><span>Credits</span><strong className="credit">{formatMoney(summary?.creditTotal)}</strong></div>
+        <div><span>Debits</span><strong className="debit">{formatMoney(summary?.debitTotal)}</strong></div>
+        <div><span>Net</span><strong>{formatMoney(summary?.netTotal)}</strong></div>
       </div>
 
-      {!loaded ? (
-        <p className="sf-muted centered">No transactions to display. Click <strong>Get Transactions</strong> to load results.</p>
-      ) : results.length === 0 ? (
+      {rows.length === 0 ? (
         <p className="sf-muted centered">No transactions match these filters.</p>
       ) : (
         <div className="sf-table-wrap inset">
@@ -532,171 +838,103 @@ function TransactionHistory({ caseItem }) {
               <tr>
                 <th>Date</th>
                 <th>Description</th>
-                <th>Classification</th>
+                <th>Type</th>
                 <th className="num">Amount</th>
-                <th className="num">Balance</th>
+                <th>Status</th>
+                <th>Fraud</th>
+                <th aria-label="Details" />
               </tr>
             </thead>
             <tbody>
-              {results.map((t) => (
-                <tr key={t.id}>
-                  <td>{t.date.replaceAll('-', '/')} <small>{t.time}</small></td>
-                  <td><strong>{t.description}</strong><small>{t.id}</small></td>
-                  <td>{t.classification}</td>
-                  <td className={`num ${t.amount < 0 ? 'debit' : 'credit'}`}>{money(t.amount)}</td>
-                  <td className="num">{money(t.balance)}</td>
-                </tr>
-              ))}
+              {rows.map((t) => {
+                const fraud = fraudByTransaction.get(t.id)
+                const open = openRow === t.id
+                return (
+                  <Fragment key={t.id}>
+                    <tr>
+                      <td>{formatDate(t.createdAt)}</td>
+                      <td>
+                        <strong>{t.description || '—'}</strong>
+                        <small>{t.transactionReference}</small>
+                      </td>
+                      <td className={t.type === 'CREDIT' ? 'credit' : 'debit'}>{t.type}</td>
+                      <td className={`num ${t.type === 'CREDIT' ? 'credit' : 'debit'}`}>
+                        {t.type === 'CREDIT' ? '+' : '−'}{formatMoney(t.amount, t.currency)}
+                      </td>
+                      <td>{t.status}</td>
+                      <td>{fraud ? <span className="sf-priority high"><i aria-hidden="true" />{fraud.fraudReference}</span> : '—'}</td>
+                      <td>
+                        <button
+                          className="sf-link-button"
+                          aria-expanded={open}
+                          onClick={() => onToggle(t.id)}
+                        >
+                          {open ? 'Hide' : 'Details'}
+                        </button>
+                      </td>
+                    </tr>
+                    {open && (
+                      <tr className="txn-detail">
+                        <td colSpan={7}>
+                          <dl>
+                            <div><dt>Reference</dt><dd>{t.transactionReference}</dd></div>
+                            <div><dt>Transaction ID</dt><dd>{t.id}</dd></div>
+                            <div><dt>Account</dt><dd>{criteria.accountNumber}</dd></div>
+                            <div><dt>Recorded</dt><dd>{formatDate(t.createdAt)}</dd></div>
+                            <div><dt>Status</dt><dd>{t.status}</dd></div>
+                            <div><dt>Currency</dt><dd>{t.currency}</dd></div>
+                            <div><dt>Description</dt><dd>{t.description || '—'}</dd></div>
+                            <div><dt>Fraud record</dt><dd>{fraud ? fraud.fraudReference : 'None linked'}</dd></div>
+                          </dl>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                )
+              })}
             </tbody>
           </table>
         </div>
       )}
-    </div>
+    </>
   )
 }
 
-function Statements({ caseItem }) {
-  if (caseItem.statements.length === 0) {
-    return <p className="sf-muted centered">No statements available for this account.</p>
+function FraudMonitoring({ records, onOpenFraud }) {
+  if (records.length === 0) {
+    return <p className="sf-muted centered">No fraud records are linked to this case.</p>
   }
   return (
-    <div className="sf-table-wrap inset">
-      <table className="sf-table">
-        <thead>
-          <tr>
-            <th>Statement Period</th>
-            <th>Account</th>
-            <th>Generated</th>
-            <th className="num">Action</th>
-          </tr>
-        </thead>
-        <tbody>
-          {caseItem.statements.map((s) => (
-            <tr key={s.period}>
-              <td><span className="sf-statement"><FileText size={15} /> {s.period}</span></td>
-              <td>{s.account}</td>
-              <td>{s.generated}</td>
-              <td className="num">
-                <button className="sf-btn outline small" disabled title="Statement download not connected yet">
-                  <Download size={14} /> Download
-                </button>
-              </td>
+    <>
+      <div className="sf-tab-heading"><ShieldAlert size={16} /> Fraud records ({records.length})</div>
+      <div className="sf-table-wrap inset">
+        <table className="sf-table">
+          <thead>
+            <tr>
+              <th>Fraud Reference</th>
+              <th>Detection Rule</th>
+              <th>Category</th>
+              <th>Risk Score</th>
+              <th>Risk Level</th>
+              <th>Investigation</th>
+              <th>Detected</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  )
-}
-
-/* ------------------------------------------------------------------
-   Fraud record (FRA-…), opened from a case's Fraud Monitoring tab
------------------------------------------------------------------- */
-
-export function FraudRecord({ fraud, onOpenCase }) {
-  const [tab, setTab] = useState('details')
-  const parent = getCase(fraud.caseId)
-
-  const fields = [
-    ['Fraud Name', fraud.id],
-    ['Rule Name', fraud.rule],
-    ['Amount', money(fraud.amount)],
-    ['Beneficiary Bank', fraud.beneficiaryBank],
-    ['Rule Description', fraud.ruleDescription],
-    ['From Account Number', fraud.fromAccount],
-    ['Post Datetime Core', fraud.postDate],
-    ['Case Number', fraud.caseNumber, 'link'],
-    ['Priority', fraud.priority],
-    ['Channel', ''],
-    ['Destination Account Number', fraud.destinationAccount],
-    ['Action Type', ''],
-    ['Account Number', ''],
-    ['Reason Code', ''],
-    ['Reason', ''],
-    ['Requested Amount', ''],
-    ['Processed Amount', ''],
-    ['Journal Number', fraud.journalNumber],
-    ['Transaction Date', fraud.transactionDate],
-    ['Consultant Identifier', ''],
-    ['Account Product Type', ''],
-    ['Service Status Code', ''],
-    ['Success', false, 'check'],
-    ['Error Message', ''],
-    ['Transaction Group ID', ''],
-    ['Financial Account', ''],
-    ['Method', ''],
-  ]
-
-  return (
-    <div className="sf-record">
-      <header className="sf-record-head">
-        <div className="sf-title-row">
-          <div className="sf-title">
-            <span className="sf-icon fraud" aria-hidden="true"><ShieldAlert size={20} /></span>
-            <div>
-              <span className="sf-kicker">Fraud</span>
-              <h1>{fraud.id}</h1>
-            </div>
-          </div>
-          <div className="sf-actions">
-            <button className="sf-pill-btn">New Case</button>
-            <button className="sf-pill-btn">Edit</button>
-            <button className="sf-pill-btn">Delete</button>
-          </div>
-        </div>
-      </header>
-
-      <div className="sf-body">
-        <div className="sf-card sf-main">
-          <div className="sf-tabs" role="tablist">
-            <button role="tab" aria-selected={tab === 'related'} className={tab === 'related' ? 'active' : ''} onClick={() => setTab('related')}>Related</button>
-            <button role="tab" aria-selected={tab === 'details'} className={tab === 'details' ? 'active' : ''} onClick={() => setTab('details')}>Details</button>
-          </div>
-
-          <div className="sf-tabpanel">
-            {tab === 'related' ? (
-              <div className="sf-related-list">
-                <div className="sf-tab-heading">Parent case</div>
-                {parent && (
-                  <button className="sf-related-row" onClick={() => onOpenCase(parent.id)}>
-                    <span className="sf-icon case small" aria-hidden="true"><Briefcase size={14} /></span>
-                    <div>
-                      <strong>{parent.id} | Case</strong>
-                      <span className="sf-muted">{parent.title} • {parent.status}</span>
-                    </div>
-                  </button>
-                )}
-              </div>
-            ) : (
-              <div className="fraud-details">
-                <div className="sf-fields single">
-                  {fields.map(([label, value, kind]) => (
-                    <Field key={label} label={label} value={value} kind={kind} />
-                  ))}
-                  <Field label="Created By" value={fraud.createdBy} />
-                  <Field label="Last Modified By" value={fraud.lastModifiedBy} />
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        <aside className="sf-side">
-          <div className="sf-card sf-side-card activity">
-            <div className="sf-activity-tabs"><button className="active">Activity</button></div>
-            <div className="sf-activity-links">
-              <span className="sf-muted">Filters: All time • All activities • All types</span>
-              <span className="sf-link-row"><button className="sf-text-link">Refresh</button> • <button className="sf-text-link">Expand All</button> • <button className="sf-text-link">View All</button></span>
-            </div>
-            <div className="sf-activity-empty">
-              <strong>Upcoming &amp; Overdue</strong>
-              <p className="sf-muted">No activities to show.</p>
-              <p className="sf-muted">Get started by sending an email, scheduling a task, and more.</p>
-            </div>
-            <button className="sf-btn primary full">Show All Activities</button>
-          </div>
-        </aside>
+          </thead>
+          <tbody>
+            {records.map((f) => (
+              <tr key={f.id}>
+                <td><button className="sf-link-button" onClick={() => onOpenFraud(f.id)}>{f.fraudReference}</button></td>
+                <td>{f.detectionRule}</td>
+                <td>{f.fraudCategory.replace(/_/g, ' ')}</td>
+                <td>{f.riskScore}</td>
+                <td><Priority value={f.riskLevel} /></td>
+                <td>{f.investigationStatus.replace(/_/g, ' ')}</td>
+                <td>{formatDay(f.detectedAt)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
-    </div>
+    </>
   )
 }
