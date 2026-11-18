@@ -62,9 +62,15 @@ function LongText({ text }) {
   )
 }
 
-function Field({ label, value, kind }) {
+function Field({ label, value, kind, onOpenCustomer }) {
   let content
-  if (kind === 'check') {
+  if (kind === 'client' && value) {
+    content = onOpenCustomer ? (
+      <button className="sf-link-button" onClick={() => onOpenCustomer(value)}>{value}</button>
+    ) : (
+      <span className="sf-link">{value}</span>
+    )
+  } else if (kind === 'check') {
     content = (
       <span className={`sf-checkbox${value ? ' on' : ''}`} role="img" aria-label={`${label}: ${value ? 'checked' : 'not checked'}`}>
         {value && <Check size={11} />}
@@ -87,11 +93,11 @@ function Field({ label, value, kind }) {
   )
 }
 
-function FieldGrid({ fields }) {
+function FieldGrid({ fields, onOpenCustomer }) {
   return (
     <div className="sf-fields">
       {fields.map(([label, value, kind]) => (
-        <Field key={label} label={label} value={value} kind={kind} />
+        <Field key={label} label={label} value={value} kind={kind} onOpenCustomer={onOpenCustomer} />
       ))}
     </div>
   )
@@ -101,7 +107,7 @@ function FieldGrid({ fields }) {
    Case list (Cases object home)
 ------------------------------------------------------------------ */
 
-export function CaseList({ onOpen }) {
+export function CaseList({ onOpen, onOpenCustomer }) {
   const [query, setQuery] = useState('')
 
   const filtered = useMemo(() => {
@@ -151,7 +157,14 @@ export function CaseList({ onOpen }) {
                 <td className="narrow"><input type="checkbox" aria-label={`Select case ${c.id}`} /></td>
                 <td><button className="sf-link-button" onClick={() => onOpen(c.id)}>{c.id}</button></td>
                 <td>{c.title}</td>
-                <td>{c.client}</td>
+                <td>
+                  <button
+                    className="sf-link-button"
+                    onClick={(e) => { e.stopPropagation(); onOpenCustomer(c.client, c.customerId) }}
+                  >
+                    {c.client}
+                  </button>
+                </td>
                 <td><Priority value={c.priority} /></td>
                 <td>{c.status}</td>
                 <td>{c.owner}</td>
@@ -178,7 +191,7 @@ const CASE_TABS = [
   { key: 'statements', label: 'Statements' },
 ]
 
-export function CaseRecord({ caseItem, onOpenFraud }) {
+export function CaseRecord({ caseItem, onOpenFraud, onOpenCustomer }) {
   const [tab, setTab] = useState('details')
   const closed = caseItem.status === 'Closed'
 
@@ -248,7 +261,9 @@ export function CaseRecord({ caseItem, onOpenFraud }) {
           </div>
 
           <div className="sf-tabpanel" role="tabpanel">
-            {tab === 'details' && <CaseDetails caseItem={caseItem} onOpenFraud={onOpenFraud} />}
+            {tab === 'details' && (
+              <CaseDetails caseItem={caseItem} onOpenFraud={onOpenFraud} onOpenCustomer={onOpenCustomer} />
+            )}
             {tab === 'transactions' && <TransactionHistory caseItem={caseItem} />}
             {tab === 'fraud' && <FraudMonitoring caseItem={caseItem} onOpenFraud={onOpenFraud} />}
             {tab === 'statements' && <Statements caseItem={caseItem} />}
@@ -272,12 +287,12 @@ export function CaseRecord({ caseItem, onOpenFraud }) {
   )
 }
 
-function CaseDetails({ caseItem, onOpenFraud }) {
+function CaseDetails({ caseItem, onOpenFraud, onOpenCustomer }) {
   return (
     <>
       {caseItem.sections.map((s) => (
         <Section key={s.title} title={s.title} defaultOpen>
-          <FieldGrid fields={s.fields} />
+          <FieldGrid fields={s.fields} onOpenCustomer={onOpenCustomer} />
         </Section>
       ))}
 

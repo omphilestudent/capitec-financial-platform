@@ -58,6 +58,19 @@ public class Account {
         updatedAt = LocalDateTime.now();
     }
 
+    public Account(
+        UUID customerId,
+        String accountNumber,
+        AccountType accountType){
+
+        this.customerId = customerId;
+        this.accountNumber = accountNumber;
+        this.accountType = accountType;
+        this.balance = BigDecimal.ZERO;
+        this.currency = "ZAR";
+        this.status = AccountStatus.ACTIVE;
+        }
+
     public UUID getId() {
         return id;
     }
