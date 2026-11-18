@@ -1,0 +1,309 @@
+/* =========================================================
+   Financial account record and the customer's Accounts tab.
+   Record layout (sf-record, sf-body, sf-section, sf-fields)
+   comes from Cases.css.
+   ========================================================= */
+
+.acc-page {
+  width: 100%;
+  color: var(--text);
+}
+
+/* Record pages are a single column. The case page keeps its side panel. */
+.sf-body.single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.sf-icon.account {
+  background: var(--slds-brand);
+}
+
+.sf-icon.customer {
+  background: #5867e8;
+}
+
+/* Record header sits in its own white panel above the tabs, as in the
+   Lightning reference pages. Scoped to the customer and account pages. */
+
+.acc-record-head {
+  margin-bottom: 12px;
+  padding: 16px 20px 18px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+}
+
+.acc-record-head .sf-title h1 {
+  margin: 2px 0 0;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.acc-record-head .sf-highlights {
+  gap: 48px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.acc-record-head .sf-actions {
+  gap: 6px;
+}
+
+/* Keyboard focus is visible on every control in these pages. */
+
+.acc-page button:focus-visible,
+.cu-page button:focus-visible,
+.acc-page select:focus-visible,
+.cu-page select:focus-visible {
+  outline: 2px solid var(--slds-brand);
+  outline-offset: 2px;
+}
+
+.acc-field select:focus-visible,
+.acc-open select:focus-visible {
+  outline: none;
+  border-color: var(--slds-brand);
+  box-shadow: 0 0 0 2px var(--slds-brand-tint);
+}
+
+.acc-unavailable {
+  margin: 0 0 12px;
+  font-size: 13px;
+}
+
+.sf-pill-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.acc-danger {
+  color: var(--danger);
+}
+
+.acc-danger:hover:not(:disabled) {
+  background: #fdf2f3;
+}
+
+.acc-danger-solid {
+  color: #fff;
+  background: var(--danger);
+  border-color: var(--danger);
+}
+
+.acc-danger-solid:hover:not(:disabled) {
+  filter: brightness(0.92);
+}
+
+.acc-status {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: var(--radius-pill);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.acc-status.active {
+  color: var(--success);
+  background: #eaf7ef;
+}
+
+.acc-status.frozen {
+  color: var(--warning);
+  background: #fdf3dc;
+}
+
+.acc-status.closed {
+  color: var(--text-secondary);
+  background: #f3f2f2;
+}
+
+.acc-confirm {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin: 0 0 12px;
+  padding: 14px 16px;
+  background: var(--surface);
+  border: 1px solid #f0b3b9;
+  border-left: 4px solid var(--danger);
+  border-radius: var(--radius-md);
+}
+
+.acc-confirm p {
+  margin: 4px 0 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.acc-confirm-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.acc-form {
+  display: grid;
+  gap: 14px;
+  padding-top: 8px;
+}
+
+.acc-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 28px;
+}
+
+.acc-field label {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--text-tertiary);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.acc-field select {
+  width: 100%;
+  height: 36px;
+  padding: 0 10px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+}
+
+.acc-field small {
+  display: block;
+  margin-top: 4px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.acc-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* Customer page: Accounts tab */
+
+.acc-open {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.acc-open label {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--text-tertiary);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.acc-open select {
+  height: 36px;
+  min-width: 200px;
+  padding: 0 10px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+}
+
+.acc-row-icon {
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  background: var(--slds-brand);
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.acc-row-body {
+  min-width: 0;
+  flex: 1;
+}
+
+.acc-row-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--slds-brand);
+  overflow-wrap: anywhere;
+}
+
+.acc-row-meta {
+  display: block;
+  margin-top: 2px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.acc-row-balance {
+  text-align: right;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .acc-form-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .acc-open select {
+    min-width: 0;
+    width: 100%;
+  }
+}
+
+.sf-icon.fraud {
+  background: #2e844a;
+}
+
+.sf-list-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.sf-list-tools select {
+  height: 32px;
+  padding: 0 8px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+}
+
+.sf-search-form {
+  margin: 0;
+}
+
+.sf-long-block {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.sf-long-block p {
+  margin: 4px 0 0;
+  font-size: 14px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.sf-highlights.stacked {
+  flex-direction: column;
+  gap: 10px;
+}

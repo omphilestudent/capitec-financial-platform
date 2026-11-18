@@ -1,35 +1,25 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
-  AlertCircle, CheckCircle2, ChevronRight, Loader2, Plus, RefreshCw, Search, Users,
+  AlertCircle, CheckCircle2, ChevronRight, Loader2, Plus, RefreshCw, Search, Users, Wallet,
 } from 'lucide-react'
 import { createCustomer, getCustomerById, getCustomers } from '../services/customerService'
+import { createAccount, getAccountsByCustomer } from '../services/accountService'
+import AccountRecord, {
+  ACCOUNT_TYPE_LABEL, ACCOUNT_TYPES, FieldGrid, StatusBadge, formatDate, formatMoney,
+} from './Accounts'
 import './Customers.css'
 
+// customer-service accepts only these two client types.
 const CLIENT_TYPES = [
-  {
-    value: 'REGISTERED_BUSINESS',
-    label: 'Registered Business',
-    description: 'A company or close corporation registered with CIPC.',
-  },
-  {
-    value: 'GROUP',
-    label: 'Group',
-    description: 'Several related clients managed together.',
-  },
   {
     value: 'INDIVIDUAL',
     label: 'Individual',
     description: 'A personal banking customer.',
   },
   {
-    value: 'SOLE_PROPRIETOR',
-    label: 'Sole Proprietor',
-    description: 'An individual trading under their own name.',
-  },
-  {
-    value: 'VENDOR',
-    label: 'Vendor',
-    description: 'A third party such as an attorney, appraiser or supplier.',
+    value: 'BUSINESS',
+    label: 'Business',
+    description: 'A company or other organisation.',
   },
 ]
 
@@ -52,6 +42,8 @@ const FIELDS = [
   },
 ]
 
+const NO_BANNER = { text: '', tone: 'success' }
+
 // Mirrors the backend CreateCustomerRequest constraints.
 function validate(values) {
   const errors = {}
@@ -66,9 +58,27 @@ function validate(values) {
   return errors
 }
 
-const formatDate = (value) => {
-  if (!value) return ''
-  return new Date(value).toLocaleString('en-ZA', { dateStyle: 'medium', timeStyle: 'short' })
+// Where the user is, kept per browser tab so a refresh returns them to the same screen.
+const NAV_KEY = 'fp.customers.nav'
+
+function readSavedNav() {
+  try {
+    const saved = JSON.parse(window.sessionStorage.getItem(NAV_KEY) || 'null')
+    if (saved?.view === 'detail' && saved.customerId) return saved
+    if (saved?.view === 'account' && saved.customerId && saved.accountId) return saved
+  } catch {
+    // Storage unavailable or corrupt: start at the list.
+  }
+  return null
+}
+
+function saveNav(nav) {
+  try {
+    if (nav) window.sessionStorage.setItem(NAV_KEY, JSON.stringify(nav))
+    else window.sessionStorage.removeItem(NAV_KEY)
+  } catch {
+    // Storage unavailable: navigation still works, it just will not survive a refresh.
+  }
 }
 
 const errorMessage = (err) => {
@@ -76,21 +86,31 @@ const errorMessage = (err) => {
   return err.response.data?.message || 'Something went wrong. Please try again.'
 }
 
-export default function Customers() {
-  const [view, setView] = useState('list') // list | pick | new | detail
+export default function Customers({ openCustomerId = null }) {
+  const [savedNav] = useState(readSavedNav)
+
+  const [view, setView] = useState(savedNav ? savedNav.view : 'list') // list | pick | new | detail | account
+  const [activeCustomerId, setActiveCustomerId] = useState(savedNav?.customerId ?? null)
+  const [activeAccountId, setActiveAccountId] = useState(savedNav?.accountId ?? null)
+
   const [customers, setCustomers] = useState([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
   const [query, setQuery] = useState('')
 
-  const [clientType, setClientType] = useState('REGISTERED_BUSINESS')
+  const [clientType, setClientType] = useState('INDIVIDUAL')
   const [formData, setFormData] = useState(EMPTY_FORM)
   const [fieldErrors, setFieldErrors] = useState({})
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState('')
 
   const [selected, setSelected] = useState(null)
-  const [banner, setBanner] = useState('')
+  const [accounts, setAccounts] = useState([])
+  const [accountsError, setAccountsError] = useState('')
+  const [detailTab, setDetailTab] = useState('details') // details | accounts
+  const [newAccountType, setNewAccountType] = useState('SAVINGS')
+  const [openingAccount, setOpeningAccount] = useState(false)
+  const [banner, setBanner] = useState(NO_BANNER)
 
   const loadCustomers = async () => {
     setLoading(true)
@@ -113,31 +133,91 @@ export default function Customers() {
     return () => { active = false }
   }, [])
 
+  const loadCustomer = async (customerId) => {
+    setSelected(null)
+    setAccounts([])
+    setAccountsError('')
+    try {
+      const [customer, list] = await Promise.all([
+        getCustomerById(customerId),
+        getAccountsByCustomer(customerId),
+      ])
+      setSelected(customer)
+      setAccounts(list)
+    } catch (err) {
+      setBanner({ text: errorMessage(err), tone: 'danger' })
+    }
+  }
+
+  // After a refresh on the customer record, reload that customer.
+  useEffect(() => {
+    if (openCustomerId) {
+      setActiveCustomerId(openCustomerId)
+      setDetailTab('details')
+      setView('detail')
+      loadCustomer(openCustomerId)
+      return
+    }
+    if (savedNav?.view === 'detail') loadCustomer(savedNav.customerId)
+  }, [])
+
+  useEffect(() => {
+    if (view === 'detail' && activeCustomerId) {
+      saveNav({ view, customerId: activeCustomerId })
+    } else if (view === 'account' && activeCustomerId && activeAccountId) {
+      saveNav({ view, customerId: activeCustomerId, accountId: activeAccountId })
+    } else {
+      saveNav(null)
+    }
+  }, [view, activeCustomerId, activeAccountId])
+
   const filtered = useMemo(() => {
+    // customer-service does not sort, so sort newest first here.
+    const newestFirst = [...customers].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    )
     const q = query.trim().toLowerCase()
-    if (!q) return customers
-    return customers.filter((c) =>
+    if (!q) return newestFirst
+    return newestFirst.filter((c) =>
       [c.firstName, c.lastName, c.email, c.phoneNumber || '', TYPE_LABEL[c.clientType] || '']
         .some((v) => v.toLowerCase().includes(q)),
     )
   }, [customers, query])
 
-  const openDetail = async (id) => {
-    setBanner('')
-    setView('detail')
-    setSelected(null)
-    try {
-      setSelected(await getCustomerById(id))
-    } catch (err) {
-      setBanner(errorMessage(err))
-    }
-  }
-
   const goToList = () => {
     setView('list')
-    setBanner('')
+    setSelected(null)
+    setAccounts([])
+    setActiveCustomerId(null)
+    setActiveAccountId(null)
+    setBanner(NO_BANNER)
     setFormError('')
     setFieldErrors({})
+  }
+
+  const openDetail = (id) => {
+    setBanner(NO_BANNER)
+    setDetailTab('details')
+    setActiveCustomerId(id)
+    setView('detail')
+    loadCustomer(id)
+  }
+
+  const openAccount = (accountId) => {
+    setBanner(NO_BANNER)
+    setActiveAccountId(accountId)
+    setView('account')
+  }
+
+  // Back from an account record to its customer. A null id means the account never loaded.
+  const backFromAccount = (customerId) => {
+    if (customerId) openDetail(customerId)
+    else goToList()
+  }
+
+  const accountRemoved = (message) => {
+    openDetail(activeCustomerId)
+    setBanner({ text: message, tone: 'success' })
   }
 
   const handleChange = (event) => {
@@ -170,7 +250,10 @@ export default function Customers() {
       })
       setFormData(EMPTY_FORM)
       setSelected(created)
-      setBanner('Customer created successfully.')
+      setAccounts([])
+      setDetailTab('details')
+      setActiveCustomerId(created.id)
+      setBanner({ text: 'Customer created successfully.', tone: 'success' })
       setView('detail')
       loadCustomers()
     } catch (err) {
@@ -180,7 +263,33 @@ export default function Customers() {
     }
   }
 
+  const handleOpenAccount = async (event) => {
+    event.preventDefault()
+    setOpeningAccount(true)
+    setAccountsError('')
+    try {
+      const created = await createAccount({ customerId: selected.id, accountType: newAccountType })
+      setAccounts((list) => [...list, created])
+      setBanner({ text: `Account ${created.accountNumber} opened.`, tone: 'success' })
+    } catch (err) {
+      setAccountsError(errorMessage(err))
+    } finally {
+      setOpeningAccount(false)
+    }
+  }
+
   /* ---------- Views ---------- */
+
+  if (view === 'account' && activeAccountId) {
+    return (
+      <AccountRecord
+        key={activeAccountId}
+        accountId={activeAccountId}
+        onBack={backFromAccount}
+        onRemoved={accountRemoved}
+      />
+    )
+  }
 
   if (view === 'pick') {
     return (
@@ -280,35 +389,126 @@ export default function Customers() {
 
   if (view === 'detail') {
     return (
-      <section className="cu-page">
-        <CustomersHeading
-          kicker="Customer"
-          title={selected ? `${selected.firstName} ${selected.lastName}` : 'Customer'}
-          meta={selected ? TYPE_LABEL[selected.clientType] : ''}
-          actions={<button className="sf-pill-btn" onClick={goToList}>Back to customers</button>}
-        />
+      <section className="sf-record cu-page">
+        <header className="sf-record-head acc-record-head">
+          <div className="sf-title-row">
+            <div className="sf-title">
+              <span className="sf-icon customer" aria-hidden="true"><Users size={20} /></span>
+              <div>
+                <span className="sf-kicker">Customer</span>
+                <h1>{selected ? `${selected.firstName} ${selected.lastName}` : 'Customer'}</h1>
+              </div>
+            </div>
 
-        {banner && (
-          <div className={`cu-banner ${selected ? 'success' : 'danger'}`} role={selected ? 'status' : 'alert'}>
-            {selected ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
-            <span>{banner}</span>
+            <div className="sf-actions">
+              <button className="sf-pill-btn" onClick={goToList}>Back to customers</button>
+            </div>
+          </div>
+
+          {selected && (
+            <dl className="sf-highlights">
+              <div><dt>Client Type</dt><dd>{TYPE_LABEL[selected.clientType] || selected.clientType}</dd></div>
+              <div><dt>Email</dt><dd>{selected.email}</dd></div>
+              <div><dt>Phone</dt><dd>{selected.phoneNumber || '—'}</dd></div>
+              <div><dt>Accounts</dt><dd>{accounts.length}</dd></div>
+            </dl>
+          )}
+        </header>
+
+        {banner.text && (
+          <div className={`cu-banner ${banner.tone}`} role={banner.tone === 'danger' ? 'alert' : 'status'}>
+            {banner.tone === 'danger' ? <AlertCircle size={18} /> : <CheckCircle2 size={18} />}
+            <span>{banner.text}</span>
           </div>
         )}
 
-        {!selected && !banner && <p className="sf-muted centered">Loading customer…</p>}
+        {!selected && !banner.text && <p className="sf-muted centered">Loading customer…</p>}
 
         {selected && (
-          <div className="sf-card cu-detail">
-            <dl className="cu-detail-grid">
-              <DetailItem label="Customer ID" value={selected.id} />
-              <DetailItem label="First name" value={selected.firstName} />
-              <DetailItem label="Last name" value={selected.lastName} />
-              <DetailItem label="Email address" value={selected.email} />
-              <DetailItem label="Phone number" value={selected.phoneNumber || '—'} />
-              <DetailItem label="Client type" value={TYPE_LABEL[selected.clientType] || selected.clientType} />
-              <DetailItem label="Created" value={formatDate(selected.createdAt)} />
-              <DetailItem label="Last updated" value={formatDate(selected.updatedAt)} />
-            </dl>
+          <div className="sf-body single">
+            <div className="sf-card sf-main">
+              <div className="sf-tabs" role="tablist">
+                <button
+                  role="tab"
+                  aria-selected={detailTab === 'details'}
+                  className={detailTab === 'details' ? 'active' : ''}
+                  onClick={() => setDetailTab('details')}
+                >
+                  Details
+                </button>
+                <button
+                  role="tab"
+                  aria-selected={detailTab === 'accounts'}
+                  className={detailTab === 'accounts' ? 'active' : ''}
+                  onClick={() => setDetailTab('accounts')}
+                >
+                  Accounts ({accounts.length})
+                </button>
+              </div>
+
+              <div className="sf-tabpanel" role="tabpanel">
+                {detailTab === 'details' ? (
+                  <FieldGrid
+                    fields={[
+                      ['Customer ID', selected.id],
+                      ['First name', selected.firstName],
+                      ['Last name', selected.lastName],
+                      ['Email address', selected.email],
+                      ['Phone number', selected.phoneNumber],
+                      ['Client type', TYPE_LABEL[selected.clientType] || selected.clientType],
+                      ['Created', formatDate(selected.createdAt)],
+                      ['Last updated', formatDate(selected.updatedAt)],
+                    ]}
+                  />
+                ) : (
+                  <>
+                    <form className="acc-open" onSubmit={handleOpenAccount} aria-busy={openingAccount}>
+                      <div>
+                        <label htmlFor="new-account-type">Account type</label>
+                        <select
+                          id="new-account-type"
+                          value={newAccountType}
+                          disabled={openingAccount}
+                          onChange={(e) => setNewAccountType(e.target.value)}
+                        >
+                          {ACCOUNT_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+                        </select>
+                      </div>
+                      <button type="submit" className="sf-btn primary" disabled={openingAccount}>
+                        {openingAccount ? <Loader2 size={15} className="cu-spin" /> : <Plus size={15} />}
+                        {openingAccount ? 'Opening…' : 'Open account'}
+                      </button>
+                    </form>
+
+                    {accountsError && (
+                      <div className="cu-banner danger" role="alert">
+                        <AlertCircle size={18} /> <span>{accountsError}</span>
+                      </div>
+                    )}
+
+                    {accounts.length === 0 ? (
+                      <p className="sf-muted centered">This customer has no accounts yet.</p>
+                    ) : (
+                      <div className="sf-related-list">
+                        {accounts.map((account) => (
+                          <button key={account.id} className="sf-related-row" onClick={() => openAccount(account.id)}>
+                            <span className="acc-row-icon" aria-hidden="true"><Wallet size={16} /></span>
+                            <span className="acc-row-body">
+                              <span className="acc-row-title">{account.accountNumber}</span>
+                              <span className="acc-row-meta">
+                                {ACCOUNT_TYPE_LABEL[account.accountType] || account.accountType} · <StatusBadge status={account.status} />
+                              </span>
+                            </span>
+                            <span className="acc-row-balance">{formatMoney(account.balance, account.currency)}</span>
+                            <ChevronRight size={15} aria-hidden="true" />
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
           </div>
         )}
       </section>
@@ -333,6 +533,12 @@ export default function Customers() {
           </>
         }
       />
+
+      {banner.text && (
+        <div className={`cu-banner ${banner.tone}`} role="alert">
+          <AlertCircle size={18} /> <span>{banner.text}</span>
+        </div>
+      )}
 
       <div className="cu-toolbar">
         <label className="sf-search">
@@ -412,14 +618,5 @@ function CustomersHeading({ kicker, title, meta, actions }) {
       </div>
       <div className="cu-heading-actions">{actions}</div>
     </header>
-  )
-}
-
-function DetailItem({ label, value }) {
-  return (
-    <div className="cu-detail-item">
-      <dt>{label}</dt>
-      <dd>{value}</dd>
-    </div>
   )
 }

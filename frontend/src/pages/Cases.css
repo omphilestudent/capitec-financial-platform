@@ -1,7 +1,4 @@
-/* =========================================================
-   Case, fraud and list pages in the Lightning record style.
-   Shell and tokens live in console.css.
-   ========================================================= */
+
 
 .sf-muted {
   color: var(--text-secondary);
@@ -25,11 +22,10 @@
   text-transform: uppercase;
 }
 
+
 .sf-link {
   color: var(--slds-brand);
-  text-decoration: underline;
-  text-decoration-style: dotted;
-  text-underline-offset: 2px;
+  text-decoration: none;
   font-weight: 600;
   cursor: default;
 }
@@ -40,6 +36,12 @@
   border: 0;
   color: var(--slds-brand);
   font-weight: 600;
+  text-decoration: none;
+}
+
+.sf-link-button:hover,
+.sf-link-button:focus-visible,
+.sf-link:hover {
   text-decoration: underline;
 }
 
@@ -91,7 +93,7 @@
   font-size: 13px;
 }
 
-/* Priority with dot (matches "Critical ●" in the screenshots) */
+
 
 .sf-priority {
   display: inline-flex;
@@ -120,7 +122,7 @@
   background: #54698d;
 }
 
-/* Icons in record headers */
+
 
 .sf-icon {
   width: 40px;
@@ -151,7 +153,7 @@
   height: 28px;
 }
 
-/* ---------- List view ---------- */
+
 
 .sf-list {
   color: var(--text);
@@ -175,7 +177,7 @@
   color: var(--text);
 }
 
-/* ---------- Tables ---------- */
+
 
 .sf-table-wrap {
   overflow-x: auto;
@@ -253,7 +255,7 @@
   text-align: center;
 }
 
-/* ---------- Record header ---------- */
+
 
 .sf-record {
   color: var(--text);
@@ -322,7 +324,7 @@
   font-weight: 600;
 }
 
-/* Status path with chevrons, plus the primary action */
+
 
 .sf-path-row {
   display: flex;
@@ -423,7 +425,7 @@
   flex-shrink: 0;
 }
 
-/* ---------- Body: main card + right column ---------- */
+
 
 .sf-body {
   display: grid;
@@ -485,7 +487,7 @@
   font-weight: 700;
 }
 
-/* Collapsible sections (grey header band with chevron) */
+
 
 .sf-section {
   margin-bottom: 12px;
@@ -514,7 +516,7 @@
   padding: 10px 6px 0;
 }
 
-/* Fields: label above value, pencil on the right, hairline under */
+
 
 .sf-fields {
   display: grid;
@@ -586,7 +588,7 @@
   overflow-wrap: anywhere;
 }
 
-/* Related list */
+
 
 .sf-related-row {
   width: 100%;
@@ -609,7 +611,7 @@
   gap: 10px;
 }
 
-/* ---------- Transaction History ---------- */
+
 
 .txn-subtab {
   display: inline-block;
@@ -723,7 +725,7 @@
   font-size: 12px;
 }
 
-/* ---------- Statements ---------- */
+
 
 .sf-statement {
   display: inline-flex;
@@ -732,7 +734,7 @@
   font-weight: 600;
 }
 
-/* ---------- Right column cards ---------- */
+
 
 .sf-side {
   display: flex;
@@ -777,7 +779,7 @@
   text-align: right;
 }
 
-/* SLA card (chargeback) */
+
 
 .sf-sla {
   padding: 14px 16px;
@@ -829,7 +831,7 @@
   text-align: center;
 }
 
-/* Disputes */
+
 
 .sf-disputes {
   margin: 0;
@@ -862,7 +864,7 @@
   margin: 0;
 }
 
-/* Feed */
+
 
 .sf-feed {
   padding: 0 0 8px;
@@ -968,7 +970,7 @@
   font-weight: 600;
 }
 
-/* ---------- Fraud record activity panel ---------- */
+
 
 .sf-side .activity {
   padding: 0 0 14px;
@@ -1024,7 +1026,7 @@
   margin: 0 14px;
 }
 
-/* ---------- Responsive ---------- */
+
 
 @media (max-width: 1100px) {
   .sf-body {
@@ -1057,5 +1059,78 @@
   .sf-tabs {
     margin: 0 -12px 12px;
     padding: 0 12px;
+  }
+}
+
+
+.txn-period {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 12px 0;
+  flex-wrap: wrap;
+}
+
+.txn-totals {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin: 12px 0;
+}
+
+.txn-totals > div {
+  border: 1px solid var(--sf-border, #dfe3e8);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: #fff;
+}
+
+.txn-totals span {
+  display: block;
+  font-size: 12px;
+  color: #5b6573;
+}
+
+.txn-totals strong {
+  font-size: 16px;
+}
+
+.txn-totals strong.credit,
+.sf-table td.credit,
+.sf-table td.credit strong {
+  color: #1b7f4b;
+}
+
+.txn-totals strong.debit,
+.sf-table td.debit,
+.sf-table td.debit strong {
+  color: #b42318;
+}
+
+.txn-detail td {
+  background: #f7f9fb;
+}
+
+.txn-detail dl {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px 16px;
+  margin: 0;
+}
+
+.txn-detail dt {
+  font-size: 12px;
+  color: #5b6573;
+}
+
+.txn-detail dd {
+  margin: 2px 0 0;
+  word-break: break-all;
+}
+
+@media (max-width: 720px) {
+  .txn-totals {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
