@@ -23,6 +23,10 @@ name: capitec-financial-platform
 
 x-service-defaults: &service-defaults
   restart: unless-stopped
+  # CPU: no hard quota (cpus:) on purpose. A quota throttled JVM startup (measured: 5-7% of CFS
+  # periods throttled, slowing Spring context init 5x). Containers share CPU fairly under contention
+  # via equal cpu_shares (the default), and an idle JVM uses almost no CPU, so idle usage stays low.
+  # Memory is still hard-capped per container (mem_limit).
   # Docker's embedded DNS occasionally times out when the VM is loaded; a single lookup failure
   # (EAI_AGAIN) used to crash a service at startup or fail a seed call. Give resolution more room.
   dns_opt:
@@ -40,7 +44,6 @@ services:
     <<: *service-defaults
     image: postgres:17
     mem_limit: 512m
-    cpus: 1.5
     # Sized for a laptop: 8 services x Hikari max 5 = 40 connections, well under max_connections.
     command: ["postgres", "-c", "max_connections=100", "-c", "shared_buffers=128MB", "-c", "effective_cache_size=384MB", "-c", "maintenance_work_mem=64MB", "-c", "wal_buffers=8MB"]
     stop_grace_period: 30s
@@ -79,7 +82,6 @@ services:
     <<: *service-defaults
     image: apache/kafka:4.4.0
     mem_limit: 1g
-    cpus: 2.0
     stop_grace_period: 30s
     environment:
       CLUSTER_ID: 5L6g3nShT-eMCtK--X86sw
@@ -132,7 +134,6 @@ services:
         - truststore
     image: capitec/customer-service:${IMAGE_TAG:-local}
     mem_limit: 640m
-    cpus: 1.0
     stop_grace_period: 30s
     environment:
       DB_URL: "jdbc:postgresql://postgres:5432/customer_service_db"
@@ -163,7 +164,6 @@ services:
         - truststore
     image: capitec/account-service:${IMAGE_TAG:-local}
     mem_limit: 640m
-    cpus: 1.0
     stop_grace_period: 30s
     environment:
       DB_URL: "jdbc:postgresql://postgres:5432/account_service_db"
@@ -198,7 +198,6 @@ services:
         - truststore
     image: capitec/transaction-service:${IMAGE_TAG:-local}
     mem_limit: 640m
-    cpus: 1.0
     stop_grace_period: 30s
     environment:
       DB_URL: "jdbc:postgresql://postgres:5432/transaction_service_db"
@@ -232,7 +231,6 @@ services:
         - truststore
     image: capitec/case-service:${IMAGE_TAG:-local}
     mem_limit: 640m
-    cpus: 1.0
     stop_grace_period: 30s
     environment:
       FRAUD_SERVICE_URL: "http://fraud-detection-service:8085"
@@ -265,7 +263,6 @@ services:
         - truststore
     image: capitec/fraud-detection-service:${IMAGE_TAG:-local}
     mem_limit: 640m
-    cpus: 1.0
     stop_grace_period: 30s
     environment:
       DB_URL: "jdbc:postgresql://postgres:5432/fraud_detection_db"
@@ -301,7 +298,6 @@ services:
         - truststore
     image: capitec/notification-service:${IMAGE_TAG:-local}
     mem_limit: 640m
-    cpus: 1.0
     stop_grace_period: 30s
     environment:
       DB_URL: "jdbc:postgresql://postgres:5432/notification_db"
@@ -332,7 +328,6 @@ services:
         - truststore
     image: capitec/statement-service:${IMAGE_TAG:-local}
     mem_limit: 640m
-    cpus: 1.0
     stop_grace_period: 30s
     environment:
       TZ: "Africa/Johannesburg"
@@ -381,7 +376,6 @@ services:
         - truststore
     image: capitec/aggregation-service:${IMAGE_TAG:-local}
     mem_limit: 640m
-    cpus: 1.0
     stop_grace_period: 30s
     environment:
       DB_URL: "jdbc:postgresql://postgres:5432/transaction_aggregation_db"
@@ -416,7 +410,6 @@ services:
         - truststore
     image: capitec/api-gateway:${IMAGE_TAG:-local}
     mem_limit: 640m
-    cpus: 1.0
     stop_grace_period: 30s
     environment:
       JAVA_OPTS: "-XX:MaxRAMPercentage=60 -XX:+UseSerialGC -XX:TieredStopAtLevel=1 -XX:+ExitOnOutOfMemoryError"
@@ -462,7 +455,6 @@ services:
       context: ./frontend
     image: capitec/frontend:${IMAGE_TAG:-local}
     mem_limit: 64m
-    cpus: 0.5
     ports:
       - "${FRONTEND_HOST_PORT:-5173}:80"
     depends_on:
@@ -479,7 +471,6 @@ services:
     # retried by Docker instead of leaving the stack half-seeded. Three attempts, then "up --wait" fails.
     restart: "on-failure:3"
     mem_limit: 128m
-    cpus: 0.5
     working_dir: /seed
     command: ["python", "/seed/seed_synthetic_banking.py"]
     environment:
