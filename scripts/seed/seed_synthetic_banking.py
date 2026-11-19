@@ -31,6 +31,7 @@ import base64
 import hashlib
 import hmac
 import json
+import socket
 import os
 import random
 import sys
@@ -102,7 +103,11 @@ def call(method, path, body=None, token=None):
         headers["Authorization"] = f"Bearer {token}"
     attempts = 4 if method == "GET" else 1
     last_error = None
-    for attempt in range(attempts):
+    # A name-resolution failure (EAI_AGAIN) means the request never left this process, so retrying it
+    # is safe for writes too. It is retried separately from ordinary connection errors.
+    dns_failures = 0
+    attempt = 0
+    while attempt < attempts:
         request = urllib.request.Request(GATEWAY + path, data=data, method=method, headers=headers)
         try:
             with urllib.request.urlopen(request, timeout=60) as response:
@@ -115,12 +120,19 @@ def call(method, path, body=None, token=None):
             except ValueError:
                 parsed = {"message": raw[:300].decode("utf-8", "replace")}
             if error.code >= 500 and attempt < attempts - 1:
+                attempt += 1
                 time.sleep(1 + attempt)
                 continue
             return error.code, parsed
         except (urllib.error.URLError, TimeoutError, ConnectionError) as error:
             last_error = error
+            if isinstance(getattr(error, "reason", None), socket.gaierror) and dns_failures < 6:
+                dns_failures += 1
+                time.sleep(min(2 ** dns_failures, 20))
+                continue
+            attempt += 1
             time.sleep(1 + attempt)
+        attempt += 1
     raise SeedError(f"{method} {path} unreachable: {last_error}")
 
 
