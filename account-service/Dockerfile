@@ -18,7 +18,7 @@ RUN addgroup -S app && adduser -S -G app app
 WORKDIR /app
 COPY --from=build --chown=app:app /workspace/target/*-SNAPSHOT.jar /app/app.jar
 USER app
-ENV JAVA_OPTS="-XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError"
+ENV JAVA_OPTS="-XX:MaxRAMPercentage=60 -XX:+UseSerialGC -XX:TieredStopAtLevel=1 -XX:+ExitOnOutOfMemoryError"
 EXPOSE 8082
 HEALTHCHECK --interval=15s --timeout=5s --start-period=90s --retries=10 \
   CMD wget -q -O /dev/null http://127.0.0.1:8082/actuator/health || exit 1
