@@ -21,7 +21,7 @@ COPY --from=build --chown=app:app /workspace/target/*-SNAPSHOT.jar /app/app.jar
 # volume (docker-compose "statement_storage") writable on first use.
 RUN mkdir -p /var/lib/capitec/statements && chown app:app /var/lib/capitec/statements
 USER app
-ENV JAVA_OPTS="-XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError"
+ENV JAVA_OPTS="-XX:MaxRAMPercentage=60 -XX:+UseSerialGC -XX:TieredStopAtLevel=1 -XX:+ExitOnOutOfMemoryError"
 EXPOSE 8087
 HEALTHCHECK --interval=15s --timeout=5s --start-period=90s --retries=10 \
   CMD wget -q -O /dev/null http://127.0.0.1:8087/actuator/health || exit 1
