@@ -5,7 +5,7 @@
 // Duplicate deliveries are produced by re-sending the exact message the service
 // published, so the test checks the consumers' idempotency rather than assuming it.
 //
-// Requirements: the platform running (see README), capitec-postgres and capitec-kafka up.
+// Requirements: the platform running (see README), postgres and kafka services running (docker compose up -d --wait).
 // Run: node scripts/e2e/verify-fraud-flow.mjs
 
 import { spawnSync } from 'node:child_process'
@@ -36,7 +36,7 @@ async function api(method, path, body) {
 
 function sql(db, query) {
   const r = spawnSync('docker', [
-    'exec', '-e', `PGPASSWORD=${DB_PASSWORD}`, 'capitec-postgres',
+    'compose', 'exec', '-T', '-e', `PGPASSWORD=${DB_PASSWORD}`, 'postgres',
     'psql', '-U', 'app_user', '-d', db, '-Atc', query,
   ], { encoding: 'utf8' })
   if (r.status !== 0) throw new Error(`psql failed: ${r.stderr}`)
@@ -45,7 +45,7 @@ function sql(db, query) {
 
 function topicLines(topic) {
   const r = spawnSync('docker', [
-    'exec', 'capitec-kafka', `${KAFKA_BIN}/kafka-console-consumer.sh`,
+    'compose', 'exec', '-T', 'kafka', `${KAFKA_BIN}/kafka-console-consumer.sh`,
     '--bootstrap-server', 'localhost:9092', '--topic', topic,
     '--from-beginning', '--timeout-ms', '6000', '--property', 'print.key=true',
   ], { encoding: 'utf8' })
@@ -54,7 +54,7 @@ function topicLines(topic) {
 
 function produce(topic, key, value) {
   const r = spawnSync('docker', [
-    'exec', '-i', 'capitec-kafka', `${KAFKA_BIN}/kafka-console-producer.sh`,
+    'compose', 'exec', '-T', 'kafka', `${KAFKA_BIN}/kafka-console-producer.sh`,
     '--bootstrap-server', 'localhost:9092', '--topic', topic,
     '--property', 'parse.key=true', '--property', 'key.separator=\t',
   ], { input: `${key}\t${value}\n`, encoding: 'utf8' })

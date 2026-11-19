@@ -22,3 +22,16 @@
 
 # Temporary files
 *.tmp
+
+# Local-only Docker setup: truststore, database backups and anything that could hold real data.
+# Never commit these. Backups contain database dumps and statement archives.
+.local/
+backups/
+*.jks
+*.p12
+*.keystore
+*.pgdump
+*.dump
+*.pdf
+private-statements/
+statement-storage/

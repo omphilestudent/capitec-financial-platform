@@ -1,3 +1,10 @@
 target/
 .idea/
 *.log
+
+# Never ship local secrets, truststores or database dumps in an image.
+.env*
+*.jks
+*.p12
+*.pgdump
+backups/

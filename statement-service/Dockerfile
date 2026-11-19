@@ -17,6 +17,9 @@ FROM eclipse-temurin:21-jre-alpine
 RUN addgroup -S app && adduser -S -G app app
 WORKDIR /app
 COPY --from=build --chown=app:app /workspace/target/*-SNAPSHOT.jar /app/app.jar
+# Statement storage. Creating it here with the app user's ownership makes a fresh named
+# volume (docker-compose "statement_storage") writable on first use.
+RUN mkdir -p /var/lib/capitec/statements && chown app:app /var/lib/capitec/statements
 USER app
 ENV JAVA_OPTS="-XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError"
 EXPOSE 8087

@@ -4,8 +4,9 @@
 // outcome in PostgreSQL and Kafka. Nothing is mocked: records are created by the
 // services, and the checks read what the services actually stored and published.
 //
-// Requirements: the platform running (see README) and the capitec-postgres and
-// capitec-kafka containers up.
+// Requirements: the platform running (see README: docker compose up -d --wait).
+// Commands go through docker compose, so any compose project name works (for example an
+// isolated test stack). Set COMPOSE_PROJECT_NAME to target a non-default project.
 //
 // Run:  node scripts/e2e/verify-platform.mjs
 
@@ -13,8 +14,8 @@ import { spawnSync } from 'node:child_process'
 
 const GATEWAY = process.env.GATEWAY_URL || 'http://localhost:8000'
 const DB_PASSWORD = process.env.DB_PASSWORD || 'local_dev_password'
-const POSTGRES = 'capitec-postgres'
-const KAFKA = 'capitec-kafka'
+const POSTGRES = 'postgres'
+const KAFKA = 'kafka'
 const KAFKA_BIN = '/opt/kafka/bin'
 
 const RUN = Date.now()
@@ -39,7 +40,7 @@ async function api(method, path, body) {
 
 function sql(db, query) {
   const r = spawnSync('docker', [
-    'exec', '-e', `PGPASSWORD=${DB_PASSWORD}`, POSTGRES,
+    'compose', 'exec', '-T', '-e', `PGPASSWORD=${DB_PASSWORD}`, POSTGRES,
     'psql', '-U', 'app_user', '-d', db, '-Atc', query,
   ], { encoding: 'utf8' })
   if (r.status !== 0) throw new Error(`psql failed: ${r.stderr}`)
@@ -48,7 +49,7 @@ function sql(db, query) {
 
 function topicMessages(topic, { headers = false } = {}) {
   const args = [
-    'exec', KAFKA, `${KAFKA_BIN}/kafka-console-consumer.sh`,
+    'compose', 'exec', '-T', KAFKA, `${KAFKA_BIN}/kafka-console-consumer.sh`,
     '--bootstrap-server', 'localhost:9092', '--topic', topic,
     '--from-beginning', '--timeout-ms', '6000', '--property', 'print.key=true',
   ]
@@ -68,9 +69,9 @@ async function waitFor(check, timeoutMs = 15000) {
 }
 
 function assertEnvironment() {
-  const pg = spawnSync('docker', ['ps', '--format', '{{.Names}}'], { encoding: 'utf8' }).stdout
-  if (!pg.includes(POSTGRES) || !pg.includes(KAFKA)) {
-    throw new Error(`Containers ${POSTGRES} and ${KAFKA} must be running`)
+  const running = spawnSync('docker', ['compose', 'ps', '--status', 'running', '--services'], { encoding: 'utf8' }).stdout
+  if (!running.split('\n').includes(POSTGRES) || !running.split('\n').includes(KAFKA)) {
+    throw new Error(`Services ${POSTGRES} and ${KAFKA} must be running (docker compose up -d --wait)`)
   }
 }
 
@@ -124,7 +125,7 @@ async function main() {
   if (customerMsg) {
     // Re-produce the exact event that was published, as a duplicate delivery.
     const dup = spawnSync('docker', [
-      'exec', '-i', KAFKA, `${KAFKA_BIN}/kafka-console-producer.sh`,
+      'compose', 'exec', '-T', KAFKA, `${KAFKA_BIN}/kafka-console-producer.sh`,
       '--bootstrap-server', 'localhost:9092', '--topic', 'customer.events',
       '--property', 'parse.key=true', '--property', 'key.separator=\t',
     ], { input: customerMsg + '\n', encoding: 'utf8' })
@@ -221,7 +222,7 @@ async function main() {
 
   console.log('\nTest 8: malformed event goes to the dead-letter topic')
   const poison = spawnSync('docker', [
-    'exec', '-i', KAFKA, `${KAFKA_BIN}/kafka-console-producer.sh`,
+    'compose', 'exec', '-T', KAFKA, `${KAFKA_BIN}/kafka-console-producer.sh`,
     '--bootstrap-server', 'localhost:9092', '--topic', 'customer.events',
     '--property', 'parse.key=true', '--property', 'key.separator=\t',
   ], { input: `poison-${RUN}\t{not valid json\n`, encoding: 'utf8' })
