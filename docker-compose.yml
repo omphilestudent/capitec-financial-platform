@@ -470,6 +470,9 @@ services:
     # The seed is idempotent (re-running adds only what is missing), so a transient failure is
     # retried by Docker instead of leaving the stack half-seeded. Three attempts, then "up --wait" fails.
     restart: "on-failure:3"
+    dns_opt:
+      - timeout:2
+      - attempts:5
     mem_limit: 128m
     working_dir: /seed
     command: ["python", "/seed/seed_synthetic_banking.py"]
