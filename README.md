@@ -217,6 +217,24 @@ The script covers: customer, account and transaction creation; outbox rows marke
 
 Outage behaviour (stopping account-service and confirming transactions return 503 without writing a row) was checked manually; it is not in the script because it stops a running service.
 
+### Fraud demonstration
+
+Runs one suspicious transaction for the customer Omphile Mohlala through the real workflow: transaction-service, the outbox and Kafka, the fraud model, the fraud alert, the case, and the notification. Needs the platform running (`scripts/dev/bootstrap.sh`).
+
+```bash
+scripts/dev/seed-fraud-demo.sh                       # defaults: 60000 ZAR, 60 s per wait step
+scripts/dev/seed-fraud-demo.sh --amount 75000 --timeout 120
+```
+
+- **Customer and account:** the existing customer named Omphile Mohlala is reused and never modified. A customer is created only if none exists, and an active savings account is opened only if the customer has none. Repeat runs do not create duplicate customers or accounts.
+- **The transaction:** a DEBIT in ZAR of 60,000 with the description `Fraud demo DEMO-<timestamp>-<hex>: high-value purchase`. The amount is checked against the `HIGH_AMOUNT` threshold that the fraud service reports at `GET /api/v1/fraud/rules` (currently 50,000), and the command refuses an amount the rule would not flag. The description contains no "EFT", so `LARGE_EFT` does not fire. The `VELOCITY` rule can also fire if the account has more than five transactions in 10 minutes (for example after several runs). The score and rules printed are the ones the service recorded.
+- **What is verified:** the outbox row is `PUBLISHED`; `processed_transactions` shows `DETECTED`; the alert exists; the alert and case reference each other and the same transaction, customer and account; and a `CASE_CREATED` notification exists (reported as a warning if it does not, not a failure).
+- **Exit codes:** `0` complete, `1` a step failed or timed out, `2` a service is unreachable or the configuration is wrong. `DB_PASSWORD` is read from the environment or `.env` and is never printed.
+
+Each run adds one transaction, one alert and one case. To close the demo cases, use the API rather than deleting rows: `PATCH /api/v1/cases/{id}` to `IN_PROGRESS`, then `RESOLVED` with `resolutionDetails`, and `PATCH /api/v1/fraud/{id}/status` for the alert. Demo records are easy to find by the `Fraud demo DEMO-` description and the `FRD-`/`CASE-` numbers in the run output.
+
+Unit tests for the decision logic (no infrastructure needed): `node --test scripts/dev/seed-fraud-demo.test.mjs`
+
 ## Known limitations
 
 - **Cases, fraud detection, notifications and statements** have no service in this repository and are not implemented.
